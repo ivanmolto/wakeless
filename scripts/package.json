@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@magicblock-labs/ephemeral-rollups-kit": "0.17.3",
     "@solana-program/token": "0.18.0",
     "@solana/kit": "8.6.0"
   }

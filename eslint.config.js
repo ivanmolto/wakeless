@@ -35,4 +35,10 @@ export default tseslint.config(
     files: ["packages/binding-*/**"],
     rules: { "no-restricted-imports": "off" },
   },
+  {
+    // Day-1 spike (plan task 1.2) that proves the calls the binding (task 2.1) then wraps.
+    // The only file outside packages/binding-* allowed to touch the primitive.
+    files: ["scripts/spike-magicblock.ts"],
+    rules: { "no-restricted-imports": "off" },
+  },
 );
