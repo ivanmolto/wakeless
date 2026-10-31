@@ -1,6 +1,30 @@
 {
   "name": "@wakeless/binding-magicblock",
   "version": "0.0.0",
-  "private": true,
-  "type": "module"
+  "description": "SettlementBinding over MagicBlock's Private Payments API and Private Ephemeral Rollup. Devnet alpha, unaudited.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@magicblock-labs/ephemeral-rollups-kit": "0.17.3",
+    "@solana-program/token": "0.18.0",
+    "@solana/kit": "8.6.0",
+    "@wakeless/binding": "workspace:*"
+  }
 }
