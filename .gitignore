@@ -4,8 +4,13 @@ keys/
 /vendor/
 node_modules
 dist
-# Was `docs/`; narrowed so docs/VERSIONS.md and the other tracked docs can be committed.
+# Private working notes (CLAUDE.md, Working style). The rest of docs/ is tracked.
 docs/wakeless-briefing.md
 docs/wakeless-plan.md
 docs/wakeless-after-hackathon.md
+docs/DEVIATIONS.md
+docs/FAILURES.md
+docs/IDEAS.md
+docs/LOG.md
+docs/VERSIONS.md
 .DS_Store

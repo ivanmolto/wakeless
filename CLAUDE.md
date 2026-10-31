@@ -82,7 +82,7 @@ Wakeless is a shielded sibling of the x402 `batch-settlement` scheme on Solana: 
 ## Working style
 
 - **Never run `git commit`, `git push`, `git add`, `git stash`, `git reset`, `git checkout` or any other command that changes git state.** The human in the loop commits and pushes by hand after reviewing each task. Reading git state (`git status`, `git diff`, `git log`) is fine.
-- Never commit after each green test run; just share a commit plan to do by a human with conventional commit title/s, very concise description/s, files to include in each commit, and terminal commands. Stage nothing. Titles follow Conventional Commits (`feat`, `fix`, `docs`, `test`, `chore`, `refactor`) and the first commit of a task names the task id in its subject; split into several commits when a task touched unrelated areas. File lists come from `git status --short`; never a bare `git add -A` or `git add .`. No `git push` unless the human in the loop asked for it. Files that must never be committed (`.env`, `keys/`, `vendor/`, anything under `docs/leak/` that is not the snapshot) are named as excluded. Format:
+- Never commit after each green test run; just share a commit plan to do by a human with conventional commit title/s, very concise description/s, files to include in each commit, and terminal commands. Stage nothing. Titles follow Conventional Commits (`feat`, `fix`, `docs`, `test`, `chore`, `refactor`) and the first commit of a task names the task id in its subject; split into several commits when a task touched unrelated areas. File lists come from `git status --short`; never a bare `git add -A` or `git add .`. No `git push` unless the human in the loop asked for it. Files that must never be committed (`.env`, `keys/`, `vendor/`, the private working notes `docs/VERSIONS.md`, `docs/DEVIATIONS.md`, `docs/FAILURES.md`, `docs/IDEAS.md`, `docs/LOG.md`, the briefing and the plans, anything under `docs/leak/` that is not the snapshot) are named as excluded. Format:
 
   ```
   COMMIT PLAN · task 3.1
@@ -90,20 +90,20 @@ Wakeless is a shielded sibling of the x402 `batch-settlement` scheme on Solana: 
   1. feat(scheme): add types and voucher for task 3.1
      Scheme package with voucher encoding and tests.
      packages/scheme/src/*.ts  packages/scheme/test/*.test.ts  packages/scheme/package.json
-  2. docs(versions): record @noble/ed25519 pin
-     docs/VERSIONS.md
-  Excluded: keys/ (gitignored), .env
+  2. docs(readme): state the voucher-exceeds-deposit error code
+     README.md
+  Excluded: keys/ (gitignored), .env, docs/VERSIONS.md and docs/FAILURES.md (private, updated)
   Commands:
     git add packages/scheme/src packages/scheme/test packages/scheme/package.json
     git commit -m "feat(scheme): add types and voucher for task 3.1"
-    git add docs/VERSIONS.md
-    git commit -m "docs(versions): record @noble/ed25519 pin"
+    git add README.md
+    git commit -m "docs(readme): state the voucher-exceeds-deposit error code"
   ```
 - Do not create branches, tags or worktrees, and never rewrite history or touch `.git/` directly.
 - **Cloud sessions are the exception.** When the session runs in Anthropic's cloud container (no human shell on the box; the container is wiped afterwards), work that is not pushed is lost, so the agent commits and pushes there, under these rules and no others: create or reuse the branch `task/<id>` from the latest `main`; make exactly the commits the commit plan describes, same titles, same file lists, `git add <files>` never `-A`; push that branch only; never commit to or push `main`, never force-push, never merge, never open a PR unless the human in the loop asks. Print the commit plan anyway, then the branch name and the commits made. The human in the loop reviews and merges on GitHub. `.env`, `keys/` and `vendor/` stay gitignored; devnet keypairs come from environment secrets, not from files committed anywhere.
 - In the cloud, mainnet tasks are not run at all: `MAINNET_ENABLED` stays false and `DEMO_CONFIRM` is never set there. Mainnet work happens on the human in the loop's machine.
 - Append one line per day to `docs/LOG.md`: date, tasks closed, what broke, tomorrow's first task, mainnet spend to date.
-- Keep `docs/VERSIONS.md`, `docs/DEVIATIONS.md`, `docs/FAILURES.md` current in the same task as the change that affects them, so they land in the same commit when the human in the loop makes it.
+- Keep `docs/VERSIONS.md`, `docs/DEVIATIONS.md`, `docs/FAILURES.md` current in the same task as the change that affects them. Those three, `docs/IDEAS.md` and `docs/LOG.md` are private working notes: gitignored like the briefing and the plans, kept on the human in the loop's machine, never committed and never listed in a commit plan's file lists. A commit plan says "updated" for them under Excluded. Public facts those notes hold (a pin, an error code, a known deviation a user must know about) go in the README or the package READMEs as well. A test or build that reads a private note must skip with a printed reason when the file is absent, since CI and cloud sessions never have it.
 - When unsure or blocked, stop and ask. Do not guess an API, invent a flag, or widen scope.
-- Do not add features that are not in the current day's tasks. Put ideas in `docs/IDEAS.md`. Relationship terms before Gate T is such an idea, whatever the prompt says.
+- Do not add features that are not in the current day's tasks. Put ideas in `docs/IDEAS.md` (private). Relationship terms before Gate T is such an idea, whatever the prompt says.
 - Never publish to npm, deploy, open a PR, or commit; prepare the artefact and hand it over.
