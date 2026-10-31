@@ -1,0 +1,11 @@
+.env
+keys/
+# Anchored: unanchored, `vendor/` would also ignore packages/vendor.
+/vendor/
+node_modules
+dist
+# Was `docs/`; narrowed so docs/VERSIONS.md and the other tracked docs can be committed.
+docs/wakeless-briefing.md
+docs/wakeless-plan.md
+docs/wakeless-after-hackathon.md
+.DS_Store

@@ -1,0 +1,10 @@
+{
+  "name": "@wakeless/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@solana-program/token": "0.18.0",
+    "@solana/kit": "8.6.0"
+  }
+}

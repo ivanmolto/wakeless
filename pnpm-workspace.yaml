@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - scripts
+
+allowBuilds:
+  esbuild: false
+
+saveExact: true

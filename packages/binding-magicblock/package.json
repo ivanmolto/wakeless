@@ -1,0 +1,6 @@
+{
+  "name": "@wakeless/binding-magicblock",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module"
+}
