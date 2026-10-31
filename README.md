@@ -19,3 +19,7 @@ Status: devnet alpha, unaudited
 - On devnet the API's `cluster` must be `devnet-private` to reach the TEE validator (`devnet` is the public devnet validator). The API's login token is separate from the TEE RPC's, and transactions are confirmed on the layer `sendTo` names, not through the API's send endpoint.
 
 Three operators still see inside: the facilitator, MagicBlock's enclave, and NEAR's private shard for funding. MagicBlock's own documentation says private transfers reduce linkability, not observability.
+
+## How the scheme relates to the x402 standard
+
+Wakeless keeps the x402 V2 envelope, the three transport headers, the facilitator endpoints and the standard 50-byte voucher, and advertises them under the scheme id `batch-settlement-shielded`. The SVM `batch-settlement` binding requires the canonical payment-channels program, so a shielded channel cannot use that id. [`docs/SCHEME.md`](docs/SCHEME.md) records, with spec line numbers, what is reused verbatim (fields, payload variants, the `invalid_batch_settlement_svm_*` error codes and `settlement_pending`), the exact voucher byte layout, every place the standard names the program, and the `accepts[]` entry with `extra.escrowAddress`, `extra.binding`, `extra.teeValidator` and `extra.privacyFeeBps`. New error codes take the `shielded_` prefix.
