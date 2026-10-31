@@ -36,9 +36,26 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(@types/node@22.20.5)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
 
-  packages/binding: {}
+  packages/binding:
+    dependencies:
+      '@solana/kit':
+        specifier: 8.6.0
+        version: 8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
 
-  packages/binding-magicblock: {}
+  packages/binding-magicblock:
+    dependencies:
+      '@magicblock-labs/ephemeral-rollups-kit':
+        specifier: 0.17.3
+        version: 0.17.3(fastestsmallesttextencoderdecoder@1.0.22)(ws@8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@solana-program/token':
+        specifier: 0.18.0
+        version: 0.18.0(@solana/kit@8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
+      '@solana/kit':
+        specifier: 8.6.0
+        version: 8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../binding
 
   packages/client: {}
 
