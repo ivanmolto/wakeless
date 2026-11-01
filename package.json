@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "keys": "tsx scripts/keys.ts",
-    "airdrop": "tsx scripts/airdrop.ts"
+    "airdrop": "tsx scripts/airdrop.ts",
+    "vendors": "pnpm --filter @wakeless/vendors start"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

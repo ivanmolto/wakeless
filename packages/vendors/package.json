@@ -2,5 +2,27 @@
   "name": "@wakeless/vendors",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "description": "Three synthetic data vendors behind x402Shielded. The data is made up. Devnet alpha, unaudited.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "tsx --conditions=development src/main.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@wakeless/scheme": "workspace:*",
+    "@wakeless/vendor": "workspace:*",
+    "hono": "4.13.14"
+  },
+  "devDependencies": {
+    "@wakeless/binding": "workspace:*",
+    "@wakeless/facilitator": "workspace:*"
+  }
 }
