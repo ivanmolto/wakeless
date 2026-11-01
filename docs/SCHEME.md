@@ -96,7 +96,7 @@ The inner `payload` is a tagged union on `payload.type`. `/verify` takes all fou
 | `voucher` | required in client mode: cumulative for this request | same, the first voucher |
 | `authorization` | server mode only | never |
 | `deposit.amount` | atomic units | same |
-| `deposit.transaction` | base64 client-signed `open` or `top_up` for the facilitator to co-sign and broadcast | replaced by `depositSignature`, section 4 |
+| `deposit.transaction` | base64 client-signed `open` or `top_up` for the facilitator to co-sign and broadcast | kept, with another meaning: the buyer's already-submitted private transfer, base64, which the binding decodes to verify buyer and amount; plus `depositSignature`, section 4 |
 
 Reference type `BatchDepositPayload` (`typescript/packages/mechanisms/svm/src/batch-settlement/types.ts:L95`-`L104`).
 
@@ -344,7 +344,7 @@ Top-level fields are the core ones unchanged (`specs/x402-specification-v2.md:L1
 
 `channelId` replaces the PDA (S8): `base58(sha256(buyer || escrowAddress || mint || u64(salt).le))`, 32 bytes, so it fits the voucher message at offset 2 unchanged. `clientRefId` is the decimal string of the first 8 bytes read as a little-endian u64; it is the encrypted reference field of the binding's private transfers and never a Memo. The derivation is pure and the facilitator recomputes it on every request, which gives `invalid_batch_settlement_svm_channel_id_mismatch` its Wakeless meaning.
 
-`deposit`: `{type: "deposit", channelConfig, depositSignature, deposit: {amount}, voucher}`. `depositSignature` is the signature of the buyer's private transfer to `escrowAddress` with `clientRefId`; the facilitator confirms it through `binding.readDeposit` and records `deposit = amount`. A reused signature is `duplicate_settlement`.
+`deposit`: `{type: "deposit", channelConfig, depositSignature, deposit: {amount, transaction}, voucher}`. The buyer first makes the private transfer itself: built by the Private Payments API with visibility `private` and `toBalance` `ephemeral`, from the buyer's private balance to `escrowAddress`, with `clientRefId = clientRefOf(channelId)`, signed by the buyer and submitted to the attested TEE RPC (`@wakeless/client` `deposit()`). `depositSignature` is that transfer's signature and `deposit.transaction` the same client-signed transaction in base64 wire format: the enclave returns neither sender, amount nor reference for an ephemeral signature (task 2.1, `docs/DEVIATIONS.md`), so the binding decodes these bytes to check that the buyer signed, that one SPL transfer pays the escrow's token account exactly `deposit.amount`, and that no Memo is present, then that the signature landed with `err: null` and the escrow's private balance grew. The facilitator never co-signs or broadcasts anything. On a match it records the channel with `deposit = amount` (a top-up adds to the existing channel's deposit) and accepts the voucher. A reused `depositSignature` is `duplicate_settlement`; a transfer the binding cannot confirm is `invalid_transaction_state`; a deposit for a channel recorded under another buyer, vendor or mint is `invalid_batch_settlement_svm_channel_state`.
 
 `voucher`: unchanged from the spec (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L545`-`L552`).
 

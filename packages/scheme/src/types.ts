@@ -112,13 +112,29 @@ export interface BatchVoucher extends UnsignedVoucher {
   readonly signature: string;
 }
 
-/** Opens a channel or tops it up and authorizes the current request. */
+/**
+ * Opens a channel or tops it up and authorizes the current request. The buyer
+ * has already made the private transfer (visibility `private`, `toBalance`
+ * `ephemeral`, `clientRefId = clientRefOf(channelId)`) from its own private
+ * balance to `extra.escrowAddress`; the facilitator confirms it through
+ * `binding.readDeposit` and records `deposit += amount`.
+ */
 export interface DepositPayload {
   readonly type: "deposit";
   readonly channelConfig: ChannelConfig;
-  /** Signature of the buyer's private transfer to `extra.escrowAddress` carrying the `clientRefId`. */
+  /** Base58 signature of the buyer's private transfer to `extra.escrowAddress` carrying the `clientRefId`. */
   readonly depositSignature: string;
-  readonly deposit: { readonly amount: string };
+  readonly deposit: {
+    /** Atomic units, decimal u64 string. */
+    readonly amount: string;
+    /**
+     * The client-signed private transfer, base64 wire format, exactly as
+     * submitted to the rollup. The enclave returns neither sender, amount nor
+     * reference for an ephemeral signature, so the binding verifies the buyer
+     * and the amount from these bytes before it checks the escrow's balance.
+     */
+    readonly transaction: string;
+  };
   /** The first (or next) cumulative voucher. */
   readonly voucher: BatchVoucher;
 }

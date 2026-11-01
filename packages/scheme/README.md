@@ -57,7 +57,7 @@ Core x402 V2 codes and the `invalid_batch_settlement_svm_*` codes whose conditio
 
 ## Payloads
 
-`deposit`: `{ type, channelConfig, depositSignature, deposit: { amount }, voucher }`, where `depositSignature` replaces the spec's `deposit.transaction` and is the buyer's private transfer to `extra.escrowAddress`. `voucher`: unchanged from the spec. `ChannelConfig` is `{ buyer, vendor, mint, salt, withdrawDelay }`. The facilitator-signed off-chain receipt travels in `SettlementResponse.extra.receipt`.
+`deposit`: `{ type, channelConfig, depositSignature, deposit: { amount, transaction }, voucher }`. `depositSignature` is the signature of the buyer's private transfer to `extra.escrowAddress` (visibility `private`, `toBalance` `ephemeral`, `clientRefId = clientRefOf(channelId)`), already submitted by the buyer; `deposit.transaction` is that same client-signed transfer in base64 wire format, which the facilitator's binding decodes to verify the buyer and the amount, since the rollup returns neither for an ephemeral signature. The facilitator never co-signs or broadcasts it. A reused `depositSignature` is `duplicate_settlement`; a transfer the binding cannot confirm is `invalid_transaction_state`. `voucher`: unchanged from the spec. `ChannelConfig` is `{ buyer, vendor, mint, salt, withdrawDelay }`. The facilitator-signed off-chain receipt travels in `SettlementResponse.extra.receipt`.
 
 ## Dependencies
 
