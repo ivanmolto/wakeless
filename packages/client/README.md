@@ -2,37 +2,57 @@
 
 Status: devnet alpha, unaudited
 
-The buyer side of the `batch-settlement-shielded` scheme. Today it holds `deposit()`, the buyer half of task 4.1: open a channel, or top one up, with a private transfer to the facilitator's escrow and build the x402 `deposit` payload. The fetch wrapper that pays requests with vouchers arrives in a later task.
+The buyer side of the `batch-settlement-shielded` scheme: a `fetch` that pays. On a 402 whose `accepts[]` lists a shielded entry, the first call to a vendor makes one private deposit into the facilitator's escrow and opens a channel; every call after it signs the next cumulative voucher and touches no chain. `deposit()`, the buyer half of task 4.1, is what the wrapper calls to open or top up a channel.
 
 ```ts
-import { deposit } from "@wakeless/client";
-import { MagicBlockBuyer } from "@wakeless/binding-magicblock";
+import { wrapFetchWithWakeless } from "@wakeless/client";
 
-const rail = await MagicBlockBuyer.create({ network, baseRpcUrl, teeRpcUrl, paymentsApiUrl, mint, buyer: buyerKeyPair });
-const { payload, channelId, signature } = await deposit({
-  rail,
-  requirements,          // the batch-settlement-shielded entry of the 402's accepts[]
-  buyer: { secretKey },  // the buyer's 64-byte Solana keypair (or its 32-byte seed); signs the voucher
-  salt: "7",             // fresh for a new channel, the channel's own for a top-up
-  amount: 1_000_000n,    // the deposit, base units; at least extra.minDeposit
-  cumulative: 10_010n,   // the first voucher: amount plus the fee share
+const pay = wrapFetchWithWakeless(fetch, {
+  buyerKeypair,                       // 64-byte Solana keypair (or 32-byte seed); signs vouchers, never sent
+  paymentsApi: "https://payments.magicblock.app",
+  teeRpc: "https://devnet-tee.magicblock.app",
+  baseRpc: process.env.SOLANA_RPC_URL, // Helius devnet; the binding asserts the cluster
+  channelStoreLocal: "~/.wakeless/channels.json", // the default; mode 0600
 });
-// payload goes in PAYMENT-SIGNATURE as { x402Version: 2, accepted: requirements, payload }
+
+const res = await pay("http://127.0.0.1:4021/price/SOL"); // 402 → deposit → 200; then 402 → voucher → 200
+pay.getTrajectory(); // [{ vendor, route, amount, cumulative, timestamp, fundingSource?, deposit? }, ...]
+pay.getChannels();   // the channels this buyer holds, as the local file records them
 ```
 
-## What `deposit()` does
+## What the wrapper does on a 402
 
-1. Refuses an accept this rail cannot serve, before anything is sent: another scheme, another `extra.binding`, another network, an `extra.teeValidator` that is not the identity the rail attested, an amount below `extra.minDeposit`.
-2. Derives `channelId = base58(sha256(buyer || escrowAddress || mint || u64(salt).le))` and `clientRefId` (the first eight bytes, little-endian u64) with `@wakeless/scheme`.
-3. Asks the rail for the private transfer of `amount` from the buyer's private balance to `extra.escrowAddress` with that `clientRefId`. On MagicBlock this is one ephemeral → ephemeral transfer built by the Private Payments API (visibility `private`, `toBalance` `ephemeral`), signed by the buyer, submitted to the attested TEE RPC and read back from it; the buyer's private balance must already hold the amount. A rail that cannot do this privately throws (`shielded_binding_rejected`, or the rail's own error); nothing is ever sent publicly.
-4. Signs the first (or next) cumulative voucher and returns `{ type: "deposit", channelConfig, depositSignature, deposit: { amount, transaction }, voucher }`. `deposit.transaction` is the client-signed transfer in base64 wire format, which the facilitator's binding decodes to verify the buyer and the amount, since the rollup returns neither for an ephemeral signature.
+1. Reads `PAYMENT-REQUIRED` (base64 JSON) and keeps the well-formed `batch-settlement-shielded` entries on devnet; anything else, or a 402 with none, is returned as it came. The parser never throws and drops an entry with a bad field rather than repairing it (`test/parse.fuzz.test.ts`).
+2. Builds the rail once per session. With no `rail` given it constructs `MagicBlockBuyer` from `paymentsApi`, `teeRpc` and `baseRpc`; that construction is the TEE attestation (`verifyTeeRpcIntegrity` plus `getIdentity`), done once and written to `attestationReportPath` when set. Every accept's `extra.teeValidator` is then compared with the attested identity; a vendor naming another identity is not paid (`shielded_attestation_failed` is thrown, nothing is sent).
+3. Takes the lock for `(payTo, asset)`: one request in flight per channel, so concurrent first calls to a vendor make one deposit and vouchers are signed in watermark order.
+4. No channel: deposits `extra.minDeposit` (or `defaultDeposit`, or 100 × the price), at least the first voucher's cumulative, with a fresh random salt, and sends the `deposit` payload with the first voucher. Channel: signs a voucher at `accepted + amount + feeShare`, where `feeShare = ceil(amount × privacyFeeBps / 10000)`, so the vendor nets the price. When the local state already shows the voucher would exceed the deposit, it tops up first instead of being refused.
+5. On a 2xx, reads `PAYMENT-RESPONSE`, adopts the facilitator's `chargedCumulativeAmount` and `balance` as the watermark and deposit, writes the channel file, and appends the trajectory entry. On a corrective 402 (`invalid_batch_settlement_svm_cumulative_exceeds_deposit`, `invalid_batch_settlement_svm_cumulative_amount_mismatch`) it verifies `extra.voucherState.signature` as its own over the quoted cumulative, adopts `extra.channelState`, and retries once: a top-up of the corrective `extra.minDeposit` when the voucher exceeds the deposit, a re-signed voucher otherwise. At most one top-up and three paid attempts per request; a snapshot it cannot verify, or any other refusal, comes back as the 402 it is.
+6. A deposit made for a request that was then not served (the vendor answered 4xx or 5xx, nothing charged) is kept in the channel file as `pendingDeposit` and presented again with the next request's voucher, never remade. `duplicate_settlement` on that resend means the facilitator had credited it already; the client counts it and pays with a voucher.
 
-The buyer key signs the voucher in this package and the transfer inside the rail; neither the key nor its seed is ever passed to the rail's transport or put on the wire. Only the public key (`channelConfig.buyer`) travels.
+## The channel file
+
+`~/.wakeless/channels.json` by default (`channelStoreLocal`), written whole through a temp file and rename, mode 0600, directory 0700. Keyed by `buyer:vendor:mint`: `salt`, `channelId`, `escrowAddress`, the confirmed `deposit`, the `accepted` watermark, a `pendingDeposit` when one exists, and the trajectory of paid requests. No key material and no tokens. A file that is not this format is refused with `shielded_client_store_unreadable` and never overwritten. One buyer process at a time: two processes over one file do not coordinate.
+
+## Options
+
+| Option | Meaning |
+| --- | --- |
+| `buyerKeypair` | 64 bytes (seed then public key, Solana CLI format) or a 32-byte seed. Signs vouchers here and the deposit inside the rail. Never sent anywhere; a test asserts no request, header, rail call, log line or the channel file carries it in any encoding |
+| `rail` | A `BuyerBinding`, or a function that builds one on the first 402. Default: `MagicBlockBuyer` from `paymentsApi`, `teeRpc`, `baseRpc`, `mint` (devnet USDC) |
+| `channelStoreLocal` | Path of the channel file |
+| `defaultDeposit` | Opening deposit when the accept names no `minDeposit`. Default 100 × the price |
+| `fundingSource` | Recorded on each trajectory entry (channels funded through Aurora, task 8.3) |
+| `log` | One line per event: channel ids, codes, statuses. Never an amount, a signature or a token |
+| `network` | Devnet only; anything else is refused at construction |
 
 ## Trust boundary
 
-The deposit is private against the public ledger. Three operators see inside: the facilitator (it receives the signed transaction and the amounts), MagicBlock's enclave (it executes the transfer) and, for channels funded through Aurora Confidential Intents, NEAR's private shard (origin and route). The buyer's own vault deposit (`POST /v1/spl/deposit`) that creates its private balance is a base-layer transaction naming the buyer and the vault; it is not made here.
+The deposit and every voucher are private against the public ledger. Three operators see inside: the facilitator (it receives the vouchers, the signed deposit transaction and the amounts), MagicBlock's enclave (it executes the private transfer) and, for channels funded through Aurora Confidential Intents, NEAR's private shard (origin and route). The buyer's own vault deposit (`POST /v1/spl/deposit`) that creates its private balance is a base-layer transaction naming the buyer and the vault; it is not made here.
+
+## Proof on devnet
+
+`pnpm client:20` runs the facilitator (real MagicBlock binding) and the three vendors in process and pays twenty requests across them: three deposits (one per vendor, 100 × each route's price, 0.6 USDC in all), seventeen vouchers, three signatures emitted, none on the base layer. 1 Nov 2026: 20 served, 8 s.
 
 ## Dependencies
 
-`@solana/kit` 8.6.0 (the `Address` type of the rail's call), `@wakeless/binding` (the `BuyerBinding` interface), `@wakeless/scheme`. No rail is imported: the caller constructs `MagicBlockBuyer` and passes it in.
+`@solana/kit` 8.6.0 (`createKeyPairFromBytes` for the rail, the `Address` type), `@wakeless/binding` (`BuyerBinding`), `@wakeless/binding-magicblock` (`MagicBlockBuyer`, the default rail), `@wakeless/scheme`. Tests run the real `@wakeless/vendor` middleware over the real `@wakeless/facilitator` app on a local port with a fake rail.
