@@ -57,7 +57,17 @@ importers:
         specifier: workspace:*
         version: link:../binding
 
-  packages/client: {}
+  packages/client:
+    dependencies:
+      '@solana/kit':
+        specifier: 8.6.0
+        version: 8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../binding
+      '@wakeless/scheme':
+        specifier: workspace:*
+        version: link:../scheme
 
   packages/facilitator:
     dependencies:
@@ -83,6 +93,9 @@ importers:
         specifier: 6.0.0
         version: 6.0.0
     devDependencies:
+      '@wakeless/client':
+        specifier: workspace:*
+        version: link:../client
       fast-check:
         specifier: 4.10.2
         version: 4.10.2

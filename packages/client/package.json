@@ -1,6 +1,29 @@
 {
   "name": "@wakeless/client",
   "version": "0.0.0",
-  "private": true,
-  "type": "module"
+  "description": "The Wakeless buyer side: deposit into a shielded channel and build the x402 deposit payload. Devnet alpha, unaudited.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@solana/kit": "8.6.0",
+    "@wakeless/binding": "workspace:*",
+    "@wakeless/scheme": "workspace:*"
+  }
 }
