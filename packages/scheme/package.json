@@ -1,6 +1,29 @@
 {
   "name": "@wakeless/scheme",
   "version": "0.0.0",
-  "private": true,
-  "type": "module"
+  "description": "x402 batch-settlement-shielded: types, voucher bytes, channel id, watermark. Pure functions, no network. Devnet alpha, unaudited.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@noble/ed25519": "3.2.0",
+    "@noble/hashes": "2.4.0",
+    "bs58": "6.0.0"
+  }
 }
