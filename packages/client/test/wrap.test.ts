@@ -294,6 +294,32 @@ describe("wrapFetchWithWakeless", () => {
     }
   });
 
+  it("beforePayment sees the charge and a throw there signs nothing", async () => {
+    const seen: { vendor: string; route: string; amount: bigint; charge: bigint }[] = [];
+    let refuse = false;
+    const w = world([SPECS[0]!]);
+    const pay = wrapFetchWithWakeless(w.fetch, {
+      ...w.options,
+      beforePayment(p) {
+        seen.push({ vendor: p.vendor, route: p.route, amount: p.amount, charge: p.charge });
+        if (refuse) throw new Error("over budget");
+      },
+    });
+    await readJson(await pay(URLS[0]!));
+    expect(seen).toEqual([{ vendor: w.vendors[0]!.payTo, route: "/price/SOL", amount: 1000n, charge: 1001n }]);
+    expect(w.rail.calls).toHaveLength(1);
+
+    refuse = true;
+    const before = w.seen.length;
+    await expect(pay(URLS[0]!)).rejects.toThrow("over budget");
+    // The policy ran once, after the unpaid 402 and before any paid attempt: no deposit, no voucher, no trajectory entry.
+    expect(seen).toHaveLength(2);
+    expect(paidEnvelopes(w.seen.slice(before))).toHaveLength(0);
+    expect(w.rail.calls).toHaveLength(1);
+    expect(pay.getTrajectory()).toHaveLength(1);
+    expect(pay.getChannels()[0]!.accepted).toBe("1001");
+  });
+
   it("a 402 without a shielded entry, or on another network, is returned as it came", async () => {
     const w = world([SPECS[0]!]);
     const plain = async () => new Response("pay me", { status: 402, headers: { "PAYMENT-REQUIRED": Buffer.from(JSON.stringify({ x402Version: 2, resource: { url: "x" }, accepts: [{ scheme: "exact", network: DEVNET_CAIP2, amount: "1", asset: address(), payTo: address(), maxTimeoutSeconds: 60, extra: {} }] })).toString("base64") } });

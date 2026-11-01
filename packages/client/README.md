@@ -42,6 +42,7 @@ pay.getChannels();   // the channels this buyer holds, as the local file records
 | `channelStoreLocal` | Path of the channel file |
 | `defaultDeposit` | Opening deposit when the accept names no `minDeposit`. Default 100 × the price |
 | `fundingSource` | Recorded on each trajectory entry (channels funded through Aurora, task 8.3) |
+| `beforePayment` | A spend policy, run once per paid request after the 402 is read and before any deposit or voucher: `{vendor, route, asset, amount, charge, privacyFeeBps}`. Throw to refuse; nothing is signed or sent and the error reaches the caller. The MCP server's caps live here |
 | `log` | One line per event: channel ids, codes, statuses. Never an amount, a signature or a token |
 | `network` | Devnet only; anything else is refused at construction |
 

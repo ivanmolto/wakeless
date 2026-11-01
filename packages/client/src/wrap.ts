@@ -54,11 +54,32 @@ export interface WakelessOptions extends MagicBlockRailOptions {
   readonly defaultDeposit?: bigint;
   /** Recorded on each trajectory entry, for channels funded through Aurora (`wakeless fund`). */
   readonly fundingSource?: string;
+  /**
+   * A spend policy, run once per paid request after the 402 is read and before any
+   * deposit is made or voucher signed. Throw to refuse: nothing is signed or sent and
+   * the error reaches the caller of the fetch. The MCP server's caps live here.
+   */
+  readonly beforePayment?: (payment: PendingPayment) => void | Promise<void>;
   /** One line per event: channel ids, codes and statuses. Never an amount, a signature or a token. */
   readonly log?: (line: string) => void;
   readonly now?: () => Date;
   /** Tests only: the salt of a new channel. Default: eight random bytes as a u64. */
   readonly salt?: () => string;
+}
+
+/** What one paid request is about to commit, as `beforePayment` sees it. Amounts in the asset's atomic units. */
+export interface PendingPayment {
+  /** The vendor's `payTo`, base58. */
+  readonly vendor: string;
+  /** The request's path. */
+  readonly route: string;
+  /** The mint, base58. */
+  readonly asset: string;
+  /** The route's price: what the vendor nets. */
+  readonly amount: bigint;
+  /** What the voucher's cumulative moves by: the price plus the privacy fee share. */
+  readonly charge: bigint;
+  readonly privacyFeeBps: number;
 }
 
 export interface WakelessFetch {
@@ -157,6 +178,10 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
     const price = BigInt(accept.amount);
     const charge = chargeOf(price, accept.extra.privacyFeeBps);
     const route = new URL(base.url).pathname;
+    // The policy runs before anything is signed; a throw here leaves no trace anywhere.
+    if (options.beforePayment !== undefined) {
+      await options.beforePayment({ vendor: accept.payTo, route, asset: accept.asset, amount: price, charge, privacyFeeBps: accept.extra.privacyFeeBps });
+    }
     const target = (entry: PaymentRequirements): bigint => (entry.extra.minDeposit === undefined ? (options.defaultDeposit ?? price * DEFAULT_DEPOSIT_MULTIPLE) : BigInt(entry.extra.minDeposit));
 
     let channel = store.get(buyerAddress, accept.payTo, accept.asset);
