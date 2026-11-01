@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@wakeless/client": "workspace:*",
+    "@wakeless/vendor": "workspace:*",
     "fast-check": "4.10.2"
   }
 }

@@ -120,11 +120,15 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
     const { request } = await readRequest(c);
     const { paymentRequirements: requirements, hash } = request;
     const invalid = (rejection: Rejection): Response => {
+      // A corrective verdict carries the channel as stored and the buyer's own last voucher,
+      // for the seller to copy onto the corrective 402 (`docs/SCHEME.md` §4.2).
+      const { corrective } = rejection;
       const body: VerifyVerdict = {
         isValid: false,
         invalidReason: rejection.code,
         invalidMessage: rejection.message,
         ...(rejection.payer !== undefined ? { payer: rejection.payer } : {}),
+        ...(corrective === undefined ? {} : { extra: { ...corrective.channelState, ...(corrective.voucherState === undefined ? {} : { voucherState: corrective.voucherState }) } }),
         ...errorBody(rejection.code, rejection.message),
       };
       log(`POST /verify 200 ${rejection.code} ${hash}`);

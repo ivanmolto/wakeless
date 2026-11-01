@@ -12,7 +12,25 @@ import {
   type VoucherPayload,
 } from "@wakeless/scheme";
 import type { ChannelRecord, ChannelStore } from "../stores/types.js";
-import { Rejection } from "./errors.js";
+import { Rejection, type CorrectiveState } from "./errors.js";
+
+/** The two verdicts on which the seller answers a corrective 402 (briefing §3, rows 1 and 2). */
+export const CORRECTIVE_CODES: ReadonlySet<string> = new Set([SCHEME_ERROR_CODES.cumulativeAmountMismatch, SCHEME_ERROR_CODES.cumulativeExceedsDeposit]);
+
+/** The snapshot a corrective verdict carries, from the record as stored. */
+export function correctiveOf(record: ChannelRecord): CorrectiveState {
+  const voucher = record.latestVoucher;
+  return {
+    channelState: {
+      channelId: record.channelId,
+      balance: record.deposit.toString(),
+      totalClaimed: record.settled.toString(),
+      withdrawRequestedAt: null,
+      chargedCumulativeAmount: record.accepted.toString(),
+    },
+    ...(voucher === null ? {} : { voucherState: { signedMaxClaimable: voucher.maxClaimableAmount, expiresAt: voucher.expiresAt, signature: voucher.signature } }),
+  };
+}
 
 /**
  * The checks a voucher must pass, split so `/verify` can run them against a
@@ -75,13 +93,20 @@ export interface VoucherVerdict extends ChannelIdentity {
   readonly after: ChannelRecord;
 }
 
-/** `/verify` for a voucher: reads the channel, writes nothing. */
+/**
+ * `/verify` for a voucher: reads the channel, writes nothing. A rejection on the
+ * cumulative (stale, or above the deposit) carries the corrective snapshot; a
+ * rejection of the signature or the channel id carries nothing of the record.
+ */
 export async function checkVoucher(payload: VoucherPayload, requirements: PaymentRequirements, channels: ChannelStore, now: number): Promise<VoucherVerdict | Rejection> {
   const identity = identify(payload.channelConfig, payload.voucher, requirements);
   if (identity instanceof Rejection) return identity;
   const before = await channels.get(identity.channelId);
   const after = applyVoucher(before, payload.channelConfig, payload.voucher, requirements, now);
-  if (after instanceof Rejection) return after;
+  if (after instanceof Rejection) {
+    if (before !== undefined && CORRECTIVE_CODES.has(after.code)) return new Rejection(after.code, after.message, after.payer, undefined, correctiveOf(before));
+    return after;
+  }
   return { ...identity, before: before as ChannelRecord, after };
 }
 

@@ -1,4 +1,4 @@
-import { SCHEME_ERROR_CODES, type SchemeErrorCode } from "@wakeless/scheme";
+import { SCHEME_ERROR_CODES, type ChannelState, type SchemeErrorCode, type VoucherState } from "@wakeless/scheme";
 
 /**
  * One error body for every refused request: `{error, code, retryable}`. `code`
@@ -48,9 +48,21 @@ export class HttpError extends Error {
 }
 
 /**
+ * What a corrective verdict carries so the seller can build the corrective 402
+ * (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L1216`-`L1269`):
+ * the channel as stored, with the watermark, and the last accepted voucher when
+ * there is one. The voucher's signature is the buyer's own, going back to the buyer.
+ */
+export interface CorrectiveState {
+  readonly channelState: ChannelState & { readonly chargedCumulativeAmount: string };
+  readonly voucherState?: VoucherState;
+}
+
+/**
  * A payment the facilitator judged and refused: the body is a verdict, the status 200.
  * `transaction` is set only for `settlement_pending`, which the spec requires to carry
  * the transaction in question; every other verdict answers `transaction: ""`.
+ * `corrective` is set only on `/verify` for the two cumulative codes.
  */
 export class Rejection {
   constructor(
@@ -58,6 +70,7 @@ export class Rejection {
     readonly message: string,
     readonly payer?: string,
     readonly transaction?: string,
+    readonly corrective?: CorrectiveState,
   ) {}
 }
 

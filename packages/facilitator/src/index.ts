@@ -8,11 +8,11 @@ export {
 export { applyDeposit, confirmDeposit, createDepositHandler, depositOpId, type ConfirmDepositInput, type DepositDeps } from "./deposit.js";
 export type { BindingState } from "./http/binding-state.js";
 export type { DepositHandler } from "./http/deposit-handler.js";
-export { HttpError, Rejection, errorBody, isRetryable, type ErrorBody } from "./http/errors.js";
+export { HttpError, Rejection, errorBody, isRetryable, type CorrectiveState, type ErrorBody } from "./http/errors.js";
 export { canonicalJson, payloadHash } from "./http/hash.js";
 export { parsePayload, parseRequest, parseRequirements, type FacilitatorRequest } from "./http/request.js";
 export { SettledResults, VerifiedSet, type Clock } from "./http/short-lived.js";
-export { applyVoucher, checkDeposit, checkVoucher, identify } from "./http/validate.js";
+export { CORRECTIVE_CODES, applyVoucher, checkDeposit, checkVoucher, correctiveOf, identify } from "./http/validate.js";
 export { createMemoryStores, MemoryBatchOperationStore, MemoryChannelStore } from "./stores/memory.js";
 export { createRedisStores, type RedisStoresOptions } from "./stores/redis.js";
 export {

@@ -169,9 +169,18 @@ export interface ChannelState {
   readonly chargedCumulativeAmount?: string;
 }
 
+/**
+ * The server's last accepted voucher, on a corrective 402 only
+ * (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L1216`-`L1269`).
+ * The buyer verifies `signature` as its own over the 50-byte message rebuilt
+ * from the derived channel id, `signedMaxClaimable` and `expiresAt` before
+ * adopting `channelState.chargedCumulativeAmount`.
+ */
 export interface VoucherState {
-  readonly channelId: string;
-  readonly maxClaimableAmount: string;
+  readonly signedMaxClaimable: string;
+  readonly expiresAt: number;
+  /** Base58 Ed25519, the buyer's own. */
+  readonly signature: string;
 }
 
 /**
@@ -218,11 +227,15 @@ export interface VerifyResponse {
   readonly invalidMessage?: string;
   readonly payer?: string;
   readonly extensions?: Readonly<Record<string, unknown>>;
-  readonly extra?: {
-    readonly channelId: string;
-    readonly balance: string;
-    readonly totalClaimed: string;
-    readonly withdrawRequestedAt: number | null;
+  /**
+   * The channel as stored. On a valid voucher the four spec fields; on a
+   * corrective verdict (`invalid_batch_settlement_svm_cumulative_amount_mismatch`,
+   * `invalid_batch_settlement_svm_cumulative_exceeds_deposit`) also
+   * `chargedCumulativeAmount` and, when a voucher was ever accepted, `voucherState`,
+   * for the seller to copy onto the corrective 402's `accepts[].extra`.
+   */
+  readonly extra?: ChannelState & {
+    readonly voucherState?: VoucherState;
   };
 }
 
