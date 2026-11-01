@@ -329,6 +329,8 @@ Top-level fields are the core ones unchanged (`specs/x402-specification-v2.md:L1
 | `maxIdleSecs` | no | `:L253` | Copied from `/supported`. The facilitator may close an idle channel at its watermark and refund the rest privately. |
 | `channelState`, `voucherState` | no | `:L257`-`L258`, `:L1216`-`L1269` | Corrective 402 only, same shapes. |
 
+The corrective 402 (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L1216`-`L1269`) is answered by the vendor on two `/verify` verdicts: `invalid_batch_settlement_svm_cumulative_amount_mismatch`, as the spec says, and `invalid_batch_settlement_svm_cumulative_exceeds_deposit`, which the spec leaves to the server and the briefing's failure table (row 1) makes corrective so the buyer learns the target. The facilitator, which holds the channel, puts the snapshot in the verdict's `extra` (`channelState` with `chargedCumulativeAmount`; `voucherState` as `{signedMaxClaimable, expiresAt, signature}` once a voucher was accepted), and the vendor copies it onto the shielded entry, as the EVM scheme has a managed `/verify` do (`specs/schemes/batch-settlement/scheme_batch_settlement_evm.md:L422`). Above the deposit the entry's `minDeposit` is the route's target or the shortfall (`maxClaimableAmount - balance`), whichever is larger. The buyer verifies `voucherState.signature` as its own before adopting the watermark, as `:L1259`-`:L1266` require, and may echo the corrective entry as `accepted`: the vendor matches `accepted` on the terms, ignoring `minDeposit`, `channelState` and `voucherState`, and forwards its own entry.
+
 `extra` keys added:
 
 | Key | Type | Required | Meaning |
