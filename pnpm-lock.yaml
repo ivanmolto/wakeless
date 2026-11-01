@@ -65,9 +65,28 @@ importers:
       '@wakeless/binding':
         specifier: workspace:*
         version: link:../binding
+      '@wakeless/binding-magicblock':
+        specifier: workspace:*
+        version: link:../binding-magicblock
       '@wakeless/scheme':
         specifier: workspace:*
         version: link:../scheme
+    devDependencies:
+      '@hono/node-server':
+        specifier: 2.1.5
+        version: 2.1.5(hono@4.13.14)
+      '@wakeless/facilitator':
+        specifier: workspace:*
+        version: link:../facilitator
+      '@wakeless/vendor':
+        specifier: workspace:*
+        version: link:../vendor
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
+      hono:
+        specifier: 4.13.14
+        version: 4.13.14
 
   packages/facilitator:
     dependencies:
@@ -167,6 +186,9 @@ importers:
 
   scripts:
     dependencies:
+      '@hono/node-server':
+        specifier: 2.1.5
+        version: 2.1.5(hono@4.13.14)
       '@magicblock-labs/ephemeral-rollups-kit':
         specifier: 0.17.3
         version: 0.17.3(fastestsmallesttextencoderdecoder@1.0.22)(ws@8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
@@ -176,6 +198,24 @@ importers:
       '@solana/kit':
         specifier: 8.6.0
         version: 8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../packages/binding
+      '@wakeless/binding-magicblock':
+        specifier: workspace:*
+        version: link:../packages/binding-magicblock
+      '@wakeless/client':
+        specifier: workspace:*
+        version: link:../packages/client
+      '@wakeless/facilitator':
+        specifier: workspace:*
+        version: link:../packages/facilitator
+      '@wakeless/scheme':
+        specifier: workspace:*
+        version: link:../packages/scheme
+      '@wakeless/vendors':
+        specifier: workspace:*
+        version: link:../packages/vendors
 
 packages:
 

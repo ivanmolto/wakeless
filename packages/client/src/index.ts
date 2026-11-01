@@ -1,1 +1,20 @@
 export { DepositRefusedError, deposit, type DepositInput, type DepositResult } from "./deposit.js";
+export { CLIENT_ERROR_CODES, WakelessClientError } from "./errors.js";
+export { chargeOf, feeShare } from "./fee.js";
+export {
+  MAX_HEADER_LENGTH,
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+  encodePaymentSignature,
+  parseChannelState,
+  parsePaymentRequired,
+  parsePaymentResponse,
+  parseShieldedAccept,
+  parseVoucherState,
+  type ParsedPaymentRequired,
+  type ParsedPaymentResponse,
+} from "./parse.js";
+export { DEFAULT_PAYMENTS_API, DEFAULT_TEE_RPC, DEVNET_USDC, createMagicBlockRail, type MagicBlockRailOptions } from "./rail.js";
+export { LocalChannelStore, STORE_VERSION, defaultStorePath, type LocalChannel, type PendingDeposit, type TrajectoryEntry } from "./store.js";
+export { DEFAULT_DEPOSIT_MULTIPLE, wrapFetchWithWakeless, type WakelessFetch, type WakelessOptions } from "./wrap.js";

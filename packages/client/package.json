@@ -1,7 +1,7 @@
 {
   "name": "@wakeless/client",
   "version": "0.0.0",
-  "description": "The Wakeless buyer side: deposit into a shielded channel and build the x402 deposit payload. Devnet alpha, unaudited.",
+  "description": "The Wakeless buyer side: a fetch that pays batch-settlement-shielded 402s with channel vouchers after one private deposit per vendor. Devnet alpha, unaudited.",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -24,6 +24,14 @@
   "dependencies": {
     "@solana/kit": "8.6.0",
     "@wakeless/binding": "workspace:*",
+    "@wakeless/binding-magicblock": "workspace:*",
     "@wakeless/scheme": "workspace:*"
+  },
+  "devDependencies": {
+    "@hono/node-server": "2.1.5",
+    "@wakeless/facilitator": "workspace:*",
+    "@wakeless/vendor": "workspace:*",
+    "fast-check": "4.10.2",
+    "hono": "4.13.14"
   }
 }
