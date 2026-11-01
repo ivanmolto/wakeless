@@ -1,0 +1,1 @@
+Build a short market view for three symbols: SOL, BTC and ETH. Use the tools.
