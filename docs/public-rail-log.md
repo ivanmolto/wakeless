@@ -1,4 +1,6 @@
-# Public rail log: `batch-settlement` on Solana devnet
+# Public rail log: Solana devnet
+
+Two baselines on the public rail: `batch-settlement` (this section through "What an observer rebuilds") and the `exact` scheme (section "exact, per call").
 
 Task 2.3. The "before" picture: the stock x402 `batch-settlement` facilitator, server and client examples from `vendor/x402/examples/typescript` (checkout `e208bd3`, unmodified) run against Solana devnet, CAIP-2 `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`, on 2026-10-31 between 22:59:21 and 22:59:41 UTC. Ten paid requests to `GET /weather` at `$0.01` each (`10000` atomic USDC, mint `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`), then the server's redemption worker claimed and settled. Every fact below was read back from the devnet ledger through `getTransaction` (`jsonParsed`) and `getAccountInfo`; the raw responses are in `docs/public-rail-observed.json`. Nothing here is from the facilitator's, server's or client's logs.
 
@@ -81,6 +83,26 @@ From the three rail signatures alone, with nothing but the ledger and the public
 - **Not recovered:** the number of requests (ten) and the per-request price. The ledger shows one deposit and one cumulative amount; ten calls at 0.01 and one call at 0.10 look the same. Anyone holding the 402 (price `10000`) can divide and get ten, but that is not in the signatures.
 
 This block is the expected output of the watcher's `reconstruct()` on these three signatures (Day 9): `payer` as above, `vendors = [9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy]`, `firstContactOrder` the same single address, `spendPerVendor = { 9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy: 100000n }`, `settlementTimes = [1793487579]` (the claim's block time; the distribute at 1793487581 is the payout of that claim).
+
+## exact, per call
+
+Task 2.4. The "every call hits the chain" baseline: the official `x402-template` from `create-solana-dapp` 4.8.5 (`x402-next` 1.2.0), source unmodified and configured only through `.env.local`, per its README: network `solana-devnet`, facilitator `https://x402.org/facilitator`, receiver the payTo above. Five paid requests to `GET /content/cheap` at `$0.01` each (`10000` atomic USDC, same mint), made by the stock `x402-fetch` 1.2.0 client with the same payer, on 2026-11-01 between 01:16:34 and 01:16:58 UTC. Each returned HTTP 200 with its signature in `X-PAYMENT-RESPONSE`; every fact below was then read back from the devnet ledger through `getTransaction` (`jsonParsed`), and the responses are in `docs/public-rail-observed.json`.
+
+| Call | Signature | Slot | Time (UTC) | Fee (lamports) | Payer USDC after | payTo USDC after |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `5bxitJ36Wjfb63gUhEVnQzwsizqPksUBY1y5wtgKNp3HRMa5JoDAM7bF6Dup9jKrM4ZqnGhH2YfnibMudM2ddmsA` | 517326743 | 01:16:34 | 10001 | 890000 | 110000 |
+| 2 | `5CqnwNoAp4H1y8sRfZNLiy5iqpS4seHfeK1bPZ3sJyrJ4sezCeidJka9oXs5TyUmUDx43xvWyTQK8YDvmUJJMiHS` | 517326813 | 01:16:51 | 10001 | 880000 | 120000 |
+| 3 | `2p1MZ1ut7bfrmjmRFejpsB4xFQLFMM3f92XHtKJMyDGfVyNhifJ4rRQJr5PKTBVMkRNmDWFj83hqALD9NFfvL2Su` | 517326823 | 01:16:53 | 10001 | 870000 | 130000 |
+| 4 | `5iV5NSXVK39BfviiPhb4W9N1k4FiAEVziTvWFkQRHAq3vLLWLhEHk4nW2aTAkNeaVQ9SXoXUEx62XYNc5Yb61JFj` | 517326832 | 01:16:55 | 10001 | 860000 | 140000 |
+| 5 | `4XSSG6tKdaic3KUDfANcZzHxjHXfkHTn1DUj1nfi4VGNtJA5ca4aFcrGmSUHbaSn2DaCwcFGLVms42WyNsWd5k11` | 517326841 | 01:16:58 | 10001 | 850000 | 150000 |
+
+Total: 5 on-chain transactions for 5 paid calls, 1 per call, against 0.3 per call for `batch-settlement` above. Sample size: five calls, one payer, one vendor, one route.
+
+The payer and payTo are the task 2.3 keys, so the two baselines are one payer-vendor pair on the ledger: an observer who widens the window sees eight transactions between `94BR…TjzT` and `9JD9…fPgy` across both rails. When the watcher's `reconstruct()` (Day 9) is checked against this document, it must take each rail's signatures separately; the payer's whole history is not either rail's baseline.
+
+Every transaction has the same shape: two Compute Budget instructions and one top-level `transferChecked` of `10000` from the payer's ATA `E8YR…u2sj` to payTo's ATA `GFLE…eNto`, authority the payer. The payer `94BR…TjzT` and the x402.org fee payer `CKPK…WYp5` both sign; the fee payer pays the fee. No Memo instruction, no channel, no program beyond Compute Budget and Token.
+
+What this rail gives an observer that `batch-settlement` does not: the number of requests and the per-request price, both of which the section above lists as not recovered. Five transfers of `10000` mean five calls at 0.01 USDC, each with its own timestamp, so the ledger holds the buyer's call pattern as well as the relationship.
 
 ## Reproduce
 
