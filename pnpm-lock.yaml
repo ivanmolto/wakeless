@@ -116,9 +116,49 @@ importers:
 
   packages/site: {}
 
-  packages/vendor: {}
+  packages/vendor:
+    dependencies:
+      '@wakeless/scheme':
+        specifier: workspace:*
+        version: link:../scheme
+      hono:
+        specifier: 4.13.14
+        version: 4.13.14
+    devDependencies:
+      '@hono/node-server':
+        specifier: 2.1.5
+        version: 2.1.5(hono@4.13.14)
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../binding
+      '@wakeless/facilitator':
+        specifier: workspace:*
+        version: link:../facilitator
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
 
-  packages/vendors: {}
+  packages/vendors:
+    dependencies:
+      '@hono/node-server':
+        specifier: 2.1.5
+        version: 2.1.5(hono@4.13.14)
+      '@wakeless/scheme':
+        specifier: workspace:*
+        version: link:../scheme
+      '@wakeless/vendor':
+        specifier: workspace:*
+        version: link:../vendor
+      hono:
+        specifier: 4.13.14
+        version: 4.13.14
+    devDependencies:
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../binding
+      '@wakeless/facilitator':
+        specifier: workspace:*
+        version: link:../facilitator
 
   packages/watcher: {}
 
