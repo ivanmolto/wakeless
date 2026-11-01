@@ -2,5 +2,20 @@
   "name": "@wakeless/facilitator",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "description": "The Wakeless facilitator: channel and operation stores. Devnet alpha, unaudited.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wakeless/scheme": "workspace:*",
+    "ioredis": "6.0.0"
+  }
 }
