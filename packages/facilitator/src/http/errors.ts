@@ -1,0 +1,61 @@
+import { SCHEME_ERROR_CODES, type SchemeErrorCode } from "@wakeless/scheme";
+
+/**
+ * One error body for every refused request: `{error, code, retryable}`. `code`
+ * is a scheme error code (`docs/SCHEME.md` §1.5), `error` a short free-form
+ * message that never echoes a signature, a token, a key or a channel amount, and
+ * `retryable` says whether the same request may be sent again unchanged.
+ *
+ * A verdict on a payment (`isValid: false`, `success: false`) keeps the spec's
+ * own response shape and carries these three fields beside it, so a client can
+ * match on `invalidReason`/`errorReason` as the spec says or on `code`.
+ */
+export interface ErrorBody {
+  readonly error: string;
+  readonly code: SchemeErrorCode;
+  readonly retryable: boolean;
+}
+
+/** Codes a client may retry unchanged: the facilitator, not the payload, was the problem. */
+const RETRYABLE: ReadonlySet<string> = new Set([
+  SCHEME_ERROR_CODES.unexpectedVerifyError,
+  SCHEME_ERROR_CODES.unexpectedSettleError,
+  SCHEME_ERROR_CODES.settlementPending,
+]);
+
+export function isRetryable(code: SchemeErrorCode): boolean {
+  return RETRYABLE.has(code);
+}
+
+export function errorBody(code: SchemeErrorCode, error: string): ErrorBody {
+  return { error, code, retryable: isRetryable(code) };
+}
+
+/** A refusal with its HTTP status: 400 for a malformed request, 500 for a facilitator fault. */
+export class HttpError extends Error {
+  constructor(
+    readonly status: 400 | 404 | 500 | 503,
+    readonly code: SchemeErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+
+  body(): ErrorBody {
+    return errorBody(this.code, this.message);
+  }
+}
+
+/** A payment the facilitator judged and refused: the body is a verdict, the status 200. */
+export class Rejection {
+  constructor(
+    readonly code: SchemeErrorCode,
+    readonly message: string,
+    readonly payer?: string,
+  ) {}
+}
+
+export function isRejection(value: unknown): value is Rejection {
+  return value instanceof Rejection;
+}

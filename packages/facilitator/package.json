@@ -2,7 +2,7 @@
   "name": "@wakeless/facilitator",
   "version": "0.0.0",
   "private": true,
-  "description": "The Wakeless facilitator: channel and operation stores. Devnet alpha, unaudited.",
+  "description": "The Wakeless facilitator: /supported, /verify, /settle over channel and operation stores. Devnet alpha, unaudited.",
   "type": "module",
   "exports": {
     ".": {
@@ -12,10 +12,19 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "start": "tsx src/server.ts"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@solana/kit": "8.6.0",
+    "@wakeless/binding": "workspace:*",
+    "@wakeless/binding-magicblock": "workspace:*",
     "@wakeless/scheme": "workspace:*",
+    "hono": "4.13.14",
     "ioredis": "6.0.0"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2"
   }
 }
