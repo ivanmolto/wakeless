@@ -164,7 +164,7 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
         errorReason: rejection.code,
         errorMessage: rejection.message,
         ...(rejection.payer !== undefined ? { payer: rejection.payer } : {}),
-        transaction: "",
+        transaction: rejection.transaction ?? "",
         network,
         ...errorBody(rejection.code, rejection.message),
       };
@@ -222,7 +222,7 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
       }
 
       if (options.deposits === undefined) {
-        throw new HttpError(500, SCHEME_ERROR_CODES.unexpectedSettleError, "this facilitator has no deposit handler yet (task 4.1)");
+        throw new HttpError(500, SCHEME_ERROR_CODES.unexpectedSettleError, "this facilitator has no deposit handler");
       }
       const verdict = await checkDeposit(payload, requirements, stores.channels);
       if (verdict instanceof Rejection) return failed(verdict);
@@ -230,6 +230,9 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
       try {
         response = await options.deposits.settle({ payload, requirements, channelId: verdict.channelId, clientRef: verdict.clientRef });
       } catch (error) {
+        // The handler's own verdicts come back as they are; a binding refusal
+        // (`shielded_binding_rejected`) becomes one with the code and nothing of the message.
+        if (error instanceof Rejection) return failed(error);
         const code = codeOf(error);
         if (code !== undefined) return failed(new Rejection(code, "the deposit was not confirmed", verdict.buyer));
         throw error;

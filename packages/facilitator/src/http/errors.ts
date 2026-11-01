@@ -47,12 +47,17 @@ export class HttpError extends Error {
   }
 }
 
-/** A payment the facilitator judged and refused: the body is a verdict, the status 200. */
+/**
+ * A payment the facilitator judged and refused: the body is a verdict, the status 200.
+ * `transaction` is set only for `settlement_pending`, which the spec requires to carry
+ * the transaction in question; every other verdict answers `transaction: ""`.
+ */
 export class Rejection {
   constructor(
     readonly code: SchemeErrorCode,
     readonly message: string,
     readonly payer?: string,
+    readonly transaction?: string,
   ) {}
 }
 

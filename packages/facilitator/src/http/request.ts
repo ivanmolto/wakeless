@@ -169,11 +169,21 @@ export function parsePayload(input: unknown, requirements: PaymentRequirements):
   const amount = parseU64(input.deposit.amount, "deposit.amount", SCHEME_ERROR_CODES.invalidPayload);
   if (!amount.ok) return reject(amount.code, amount.message);
   if (amount.value === 0n) return reject(SCHEME_ERROR_CODES.invalidPayload, "deposit.amount must be positive");
+  if (!isWireTransaction(input.deposit.transaction)) {
+    return reject(SCHEME_ERROR_CODES.invalidPayload, "deposit.transaction must be a base64 wire transaction of at most 1232 bytes");
+  }
   return {
     type: "deposit",
     channelConfig,
     depositSignature: input.depositSignature as string,
-    deposit: { amount: input.deposit.amount as string },
+    deposit: { amount: input.deposit.amount as string, transaction: input.deposit.transaction },
     voucher: voucher.value,
   };
+}
+
+/** A Solana packet is at most 1232 bytes, 1644 characters of base64. Shape only; the binding decodes it. */
+export const MAX_WIRE_TRANSACTION_BASE64 = 1644;
+
+function isWireTransaction(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= MAX_WIRE_TRANSACTION_BASE64 && value.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
 }

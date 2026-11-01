@@ -117,13 +117,19 @@ export function voucherPayload(s: Scenario, cumulative: bigint, voucher = vouche
   return { type: "voucher", channelConfig: s.channelConfig, voucher };
 }
 
-export function depositPayload(s: Scenario, amount: bigint, cumulative: bigint): DepositPayload {
+/** Stands in for the client-signed wire transaction; the HTTP tests' binding fake never decodes it. */
+export function wireTransaction(): string {
+  return randomBytes(300).toString("base64");
+}
+
+export function depositPayload(s: Scenario, amount: bigint, cumulative: bigint, overrides: Partial<Pick<DepositPayload, "depositSignature" | "channelConfig">> = {}): DepositPayload {
   return {
     type: "deposit",
     channelConfig: s.channelConfig,
     depositSignature: encodeBase58(randomBytes(64)),
-    deposit: { amount: amount.toString() },
+    deposit: { amount: amount.toString(), transaction: wireTransaction() },
     voucher: voucherOf(s, cumulative),
+    ...overrides,
   };
 }
 

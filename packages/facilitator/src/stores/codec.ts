@@ -25,7 +25,7 @@ import {
  */
 
 const CHANNEL_STATES: readonly ChannelLifecycle[] = ["open", "closing", "closed"];
-const OPERATION_TYPES: readonly OperationType[] = ["claim", "settle", "refund"];
+const OPERATION_TYPES: readonly OperationType[] = ["deposit", "claim", "settle", "refund"];
 const OPERATION_STATUSES: readonly OperationStatus[] = ["pending", "confirmed", "failed", "rejected"];
 
 function isObject(value: unknown): value is Record<string, unknown> {

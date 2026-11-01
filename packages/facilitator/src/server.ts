@@ -9,6 +9,7 @@ import { serve } from "@hono/node-server";
 import { createKeyPairFromBytes, type Address } from "@solana/kit";
 import { DEVNET_CAIP2, isBindingError, BINDING_ERROR_CODES } from "@wakeless/binding";
 import { MagicBlockBinding } from "@wakeless/binding-magicblock";
+import { createDepositHandler } from "./deposit.js";
 import { createFacilitatorApp } from "./http/app.js";
 import type { BindingState } from "./http/binding-state.js";
 import { createMemoryStores } from "./stores/memory.js";
@@ -80,7 +81,9 @@ async function main(): Promise<void> {
   if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_ENABLED is not honoured by the facilitator: it runs on devnet only");
   const binding = await bindingState();
   const stores = process.env.REDIS_URL ? createRedisStores(process.env.REDIS_URL) : createMemoryStores();
-  const app = createFacilitatorApp({ binding, stores, log: (line) => console.log(`[facilitator] ${line}`) });
+  const log = (line: string) => console.log(`[facilitator] ${line}`);
+  const deposits = binding.status === "ready" ? createDepositHandler({ binding: binding.binding, stores, log }) : undefined;
+  const app = createFacilitatorApp({ binding, stores, deposits, log });
   const port = Number(process.env.FACILITATOR_PORT ?? 4020);
   const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
     console.log(`[facilitator] listening on http://127.0.0.1:${info.port} (${binding.status}, ${process.env.REDIS_URL ? "redis" : "memory"} stores, ${DEVNET_CAIP2})`);

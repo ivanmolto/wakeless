@@ -5,6 +5,7 @@ export {
   createFacilitatorApp,
   type FacilitatorOptions,
 } from "./http/app.js";
+export { applyDeposit, confirmDeposit, createDepositHandler, depositOpId, type ConfirmDepositInput, type DepositDeps } from "./deposit.js";
 export type { BindingState } from "./http/binding-state.js";
 export type { DepositHandler } from "./http/deposit-handler.js";
 export { HttpError, Rejection, errorBody, isRetryable, type ErrorBody } from "./http/errors.js";

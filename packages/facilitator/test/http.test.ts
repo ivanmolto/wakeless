@@ -3,7 +3,7 @@ import { SCHEME_ERROR_CODES, isSchemeErrorCode, type SettlementResponse, type Su
 import type { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { createFacilitatorApp, createMemoryStores, type DepositHandler, type FacilitatorOptions, type Stores } from "../src/index.js";
-import { AMOUNT, CHARGE, DEPOSIT, TEE_VALIDATOR, depositPayload, envelope, fakeBinding, ready, scenario, voucherOf, voucherPayload, type Scenario } from "./fixtures.js";
+import { AMOUNT, CHARGE, DEPOSIT, TEE_VALIDATOR, depositPayload, envelope, fakeBinding, ready, scenario, voucherOf, voucherPayload, wireTransaction, type Scenario } from "./fixtures.js";
 
 const BASE58_88 = /[1-9A-HJ-NP-Za-km-z]{87,88}/;
 
@@ -224,8 +224,10 @@ describe("facilitator HTTP", () => {
       { name: "stale", path: "/verify", body: envelope(h.s, voucherPayload(h.s, 1n)), status: 200, code: SCHEME_ERROR_CODES.cumulativeAmountMismatch },
       { name: "settle unverified", path: "/settle", body: good, status: 200, code: "shielded_verify_required" },
       { name: "settle bad signature", path: "/settle", body: envelope(h.s, wrongSigner), status: 200, code: SCHEME_ERROR_CODES.voucherSignature },
-      { name: "deposit amount", path: "/verify", body: envelope(h.s, { ...depositPayload(h.s, 1n, CHARGE), deposit: { amount: "0" } }), status: 200, code: SCHEME_ERROR_CODES.invalidPayload },
+      { name: "deposit amount", path: "/verify", body: envelope(h.s, { ...depositPayload(h.s, 1n, CHARGE), deposit: { amount: "0", transaction: wireTransaction() } }), status: 200, code: SCHEME_ERROR_CODES.invalidPayload },
       { name: "deposit signature", path: "/verify", body: envelope(h.s, { ...depositPayload(h.s, 1n, CHARGE), depositSignature: "abc" }), status: 200, code: SCHEME_ERROR_CODES.invalidPayload },
+      { name: "deposit transaction", path: "/verify", body: envelope(h.s, { ...depositPayload(h.s, 1n, CHARGE), deposit: { amount: "1", transaction: "not base64!" } }), status: 200, code: SCHEME_ERROR_CODES.invalidPayload },
+      { name: "deposit transaction too long", path: "/verify", body: envelope(h.s, { ...depositPayload(h.s, 1n, CHARGE), deposit: { amount: "1", transaction: "A".repeat(1648) } }), status: 200, code: SCHEME_ERROR_CODES.invalidPayload },
       { name: "deposit short", path: "/verify", body: envelope(unknown, depositPayload(unknown, 1n, CHARGE)), status: 200, code: SCHEME_ERROR_CODES.cumulativeExceedsDeposit },
       { name: "deposit other buyer", path: "/verify", body: envelope({ ...unknown, channelConfig: unknown.channelConfig }, depositPayload({ ...unknown, channelId: h.s.channelId }, 1n, CHARGE)), status: 200, code: SCHEME_ERROR_CODES.channelIdMismatch },
       { name: "no deposit handler", path: "/settle", body: envelope(h.s, depositPayload(h.s, 500_000n, CHARGE)), status: 500, code: SCHEME_ERROR_CODES.unexpectedSettleError },

@@ -55,7 +55,8 @@ export interface ChannelStore {
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
-export type OperationType = "claim" | "settle" | "refund";
+/** `deposit` records a buyer's deposit signature once it is credited, so it is never credited twice. */
+export type OperationType = "deposit" | "claim" | "settle" | "refund";
 
 /**
  * `pending` to `confirmed`, `failed` or `rejected`; `failed` back to `pending`
