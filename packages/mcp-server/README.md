@@ -12,7 +12,7 @@ An MCP server over stdio whose tools pay the three Wakeless vendors through [`@w
 | `budget_status()` | the owner | the caps, what the last 24 hours charged, how many payments, the channels held |
 | `set_limits({perPayment, perDay})` | the owner | changes either cap or both, in USDC (`"0.05"`, `1`) |
 
-A symbol is 1 to 12 letters or digits (upper-cased first); anything else is refused here and no request is made. Each data tool returns the vendor's JSON body as text; a refusal or failure is an `isError` result whose text says what happened and that nothing was charged.
+Each data tool's description names the route's price and says the charge adds the facilitator's privacy fee share (`extra.privacyFeeBps`, 10 bps by default), so an agent reconciling `budget_status` against the listed prices is told where the difference comes from rather than left to notice it, as run-1's agent did. A symbol is 1 to 12 letters or digits (upper-cased first); anything else is refused here and no request is made. Each data tool returns the vendor's JSON body as text; a refusal or failure is an `isError` result whose text says what happened and that nothing was charged.
 
 ## The caps
 

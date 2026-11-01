@@ -25,11 +25,14 @@ export interface VendorRoute {
   readonly defaultPort: number;
 }
 
+/** The facilitator sets the fee (`extra.privacyFeeBps`, 10 bps by default), so the descriptions name the share without a number. Run-1's agent noticed the difference. */
+const FEE_NOTE = ", plus the facilitator's privacy fee share, which budget_status counts in the charge";
+
 /** One tool per vendor, in `@wakeless/vendors` order; a test holds the two lists together. */
 export const ROUTES: readonly VendorRoute[] = [
-  { tool: "get_price", path: "/price", description: "The latest price of a symbol in USD from vendor1, a paid synthetic feed (1000 USDC atomic units per request).", defaultPort: 4021 },
-  { tool: "get_sentiment", path: "/sentiment", description: "The market sentiment of a symbol, -1 bearish to 1 bullish, from vendor2, a paid synthetic feed (2000 USDC atomic units per request).", defaultPort: 4022 },
-  { tool: "get_news", path: "/news", description: "Recent news headlines about a symbol from vendor3, a paid synthetic feed (3000 USDC atomic units per request).", defaultPort: 4023 },
+  { tool: "get_price", path: "/price", description: `The latest price of a symbol in USD from vendor1, a paid synthetic feed (1000 USDC atomic units per request${FEE_NOTE}).`, defaultPort: 4021 },
+  { tool: "get_sentiment", path: "/sentiment", description: `The market sentiment of a symbol, -1 bearish to 1 bullish, from vendor2, a paid synthetic feed (2000 USDC atomic units per request${FEE_NOTE}).`, defaultPort: 4022 },
+  { tool: "get_news", path: "/news", description: `Recent news headlines about a symbol from vendor3, a paid synthetic feed (3000 USDC atomic units per request${FEE_NOTE}).`, defaultPort: 4023 },
 ];
 
 export const TOOL_NAMES = [...ROUTES.map((r) => r.tool), "budget_status", "set_limits"] as const;

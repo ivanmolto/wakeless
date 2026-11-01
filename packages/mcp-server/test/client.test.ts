@@ -23,6 +23,8 @@ describe("MCP client", () => {
       expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
       expect(tools).toHaveLength(5);
       for (const tool of tools) expect(tool.description, tool.name).toBeTruthy();
+      // The charge exceeds the listed price by the fee share; the agent must be told, not left to notice.
+      for (const tool of tools.filter((t) => t.name.startsWith("get_"))) expect(tool.description, tool.name).toContain("privacy fee share");
       const price = tools.find((t) => t.name === "get_price")!;
       expect(price.inputSchema).toMatchObject({ type: "object", required: ["symbol"] });
       expect(tools.find((t) => t.name === "budget_status")!.annotations?.readOnlyHint).toBe(true);
