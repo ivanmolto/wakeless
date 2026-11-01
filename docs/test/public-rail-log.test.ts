@@ -54,6 +54,13 @@ describe("docs/public-rail-log.md", () => {
     expect(rebuilt).toContain("9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy: 100000n");
   });
 
+  it("exact baseline has five per-call signatures", () => {
+    const exact = section(text, "## exact, per call");
+    const signatures = [...exact.matchAll(SIGNATURE)].map(m => m[1]);
+    expect(signatures).toHaveLength(5);
+    expect(new Set(signatures).size).toBe(5);
+  });
+
   it("names the three operators' public footprint and no secret", () => {
     // The log quotes devnet transactions, never keys, vouchers or bearer tokens.
     expect(text).not.toMatch(/SVM_PRIVATE_KEY=\S/);
