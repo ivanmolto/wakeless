@@ -1,0 +1,14 @@
+{
+  "verified": true,
+  "rpcUrl": "https://devnet-tee.magicblock.app",
+  "host": "devnet-tee.magicblock.app",
+  "validatorIdentity": "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo",
+  "cluster": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "verifier": {
+    "package": "@magicblock-labs/ephemeral-rollups-kit",
+    "version": "0.17.3",
+    "method": "verifyTeeRpcIntegrity"
+  },
+  "collateral": "https://pccs.phala.network/tdx/certification/v4",
+  "verifiedAt": "2026-11-01T19:40:31.995Z"
+}
