@@ -49,6 +49,9 @@ export const SCHEME_ERROR_CODES = {
   shieldedAttestationFailed: "shielded_attestation_failed",
   /** `/settle` of a voucher with no valid `/verify` of the same payload within `maxTimeoutSeconds`. */
   shieldedVerifyRequired: "shielded_verify_required",
+
+  /** Seller side: the facilitator did not answer, so the request fails closed with a 402. */
+  facilitatorUnavailable: "shielded_facilitator_unavailable",
 } as const;
 
 export type SchemeErrorCode = (typeof SCHEME_ERROR_CODES)[keyof typeof SCHEME_ERROR_CODES];
