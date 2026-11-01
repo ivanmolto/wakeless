@@ -2,5 +2,31 @@
   "name": "@wakeless/mcp-server",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "description": "An MCP server over stdio whose tools pay the three Wakeless vendors through @wakeless/client, under a per-payment and a rolling 24h cap. Devnet alpha, unaudited.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "tsx --conditions=development src/main.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@wakeless/client": "workspace:*",
+    "@wakeless/scheme": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@hono/node-server": "2.1.5",
+    "@wakeless/binding": "workspace:*",
+    "@wakeless/facilitator": "workspace:*",
+    "@wakeless/vendors": "workspace:*",
+    "fast-check": "4.10.2",
+    "hono": "4.13.14"
+  }
 }

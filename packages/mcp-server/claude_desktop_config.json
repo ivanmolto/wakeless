@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "wakeless": {
+      "command": "pnpm",
+      "args": ["--silent", "-C", "/ABSOLUTE/PATH/TO/wakeless/packages/mcp-server", "start"],
+      "env": {
+        "BUYER_KEYPAIR": "keys/buyer.json",
+        "WAKELESS_PER_PAYMENT_USDC": "0.05",
+        "WAKELESS_PER_DAY_USDC": "1"
+      }
+    }
+  }
+}

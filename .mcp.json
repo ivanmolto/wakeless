@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "wakeless": {
+      "command": "pnpm",
+      "args": ["--silent", "-C", "packages/mcp-server", "start"],
+      "env": {
+        "BUYER_KEYPAIR": "keys/buyer.json"
+      }
+    }
+  }
+}
