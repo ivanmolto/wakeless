@@ -20,7 +20,11 @@ export function clientRefId(value: string | bigint | number): ClientRefId {
   return text as ClientRefId;
 }
 
-/** `channelId = sha256(buyer, escrow, mint, salt)`, 32 bytes as lowercase hex. */
+/**
+ * `channelId = sha256(buyer, escrow, mint, salt)`, 32 bytes as lowercase hex, as the
+ * binding's `Receipt` carries it. The wire form is base58 (`@wakeless/scheme`
+ * `deriveChannelId`); the two name the same bytes.
+ */
 export type ChannelId = string & { readonly [brand]: "ChannelId" };
 
 export function channelId(hex: string): ChannelId {
@@ -28,10 +32,9 @@ export function channelId(hex: string): ChannelId {
   return hex as ChannelId;
 }
 
-/** The `clientRefId` of a channel is the decimal value of the first eight bytes of its id (briefing §3). */
-export function clientRefIdFromChannelId(id: ChannelId): ClientRefId {
-  return clientRefId(BigInt(`0x${id.slice(0, 16)}`));
-}
+// A channel's `clientRefId` is derived by `@wakeless/scheme` (`clientRefOf`: the first
+// eight bytes of the base58 id read as a little-endian u64, `docs/SCHEME.md` §4.3) and
+// handed to a binding as a `ClientRefId`. The binding derives nothing from a channel id.
 
 /** What every binding call is told about the transfer it must find or make. */
 export interface ClientRef {

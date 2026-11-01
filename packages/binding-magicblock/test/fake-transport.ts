@@ -64,6 +64,8 @@ export interface FakeTransportOptions {
   escrowAta: Address;
   /** Starting private balance of the escrow, base units. */
   balance?: bigint;
+  /** Other wallets' token accounts and private balances (a buyer); unknown wallets get a derived account and `0`. */
+  wallets?: Map<string, { ata: Address; balance: bigint }>;
   attest?: () => Promise<boolean | void>;
   /** Replaces the answer to `POST /v1/spl/transfer`. */
   transfer?: (body: Record<string, unknown>) => Promise<unknown>;
@@ -92,6 +94,17 @@ export class FakeTransport implements MagicBlockTransport {
     return this.apiCalls.filter((c) => c.method === method && c.path.split("?")[0] === path);
   }
 
+  /** A wallet's token account: the escrow's, a configured one, or one derived from the address. */
+  ataOf(address: string): Address {
+    if (address === this.opts.escrowAddress) return this.opts.escrowAta;
+    return this.opts.wallets?.get(address)?.ata ?? (`${address.slice(0, 10)}ata`.padEnd(44, "1") as Address);
+  }
+
+  private balanceOf(address: string): bigint {
+    if (address === this.opts.escrowAddress) return this.balance;
+    return this.opts.wallets?.get(address)?.balance ?? 0n;
+  }
+
   transferBodies(): Record<string, unknown>[] {
     return this.calls("POST", "/v1/spl/transfer").map((c) => c.body as Record<string, unknown>);
   }
@@ -113,12 +126,14 @@ export class FakeTransport implements MagicBlockTransport {
         return { challenge: "Sign in to MagicBlock Payments\nnonce: 1" };
       case "POST /v1/spl/login":
         return { token: "api.token.part3.part4" };
-      case "GET /v1/spl/private-balance":
-        return { address: this.opts.escrowAddress, mint: USDC, ata: this.opts.escrowAta, location: "ephemeral", balance: this.balance.toString(), delegation: { status: "delegated", validator: VALIDATOR, endpoint: TEE_RPC } };
+      case "GET /v1/spl/private-balance": {
+        const address = new URLSearchParams(request.path.split("?")[1] ?? "").get("address") ?? this.opts.escrowAddress;
+        return { address, mint: USDC, ata: this.ataOf(address), location: "ephemeral", balance: this.balanceOf(address).toString(), delegation: { status: "delegated", validator: VALIDATOR, endpoint: TEE_RPC } };
+      }
       case "POST /v1/spl/transfer": {
         const body = request.body as Record<string, unknown>;
         if (this.opts.transfer) return this.opts.transfer(body);
-        const tx = await buildUnsignedTransfer(body.from as Address, this.opts.escrowAta, `${String(body.to).slice(0, 10)}ata`.padEnd(44, "1") as Address, BigInt(body.amount as number));
+        const tx = await buildUnsignedTransfer(body.from as Address, this.ataOf(String(body.from)), this.ataOf(String(body.to)), BigInt(body.amount as number));
         return {
           kind: "spl.transfer",
           version: "v0",

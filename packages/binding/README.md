@@ -19,13 +19,26 @@ interface SettlementBinding {
 
 ## References
 
-`ClientRefId` is the decimal u64 the Private Payments API's `clientRefId` field takes: digits only, encrypted inside the rollup, returned by no read endpoint. A channel's reference is the decimal value of the first eight bytes of its `channelId` (`clientRefIdFromChannelId`). A binding never writes a Memo instruction; receipt data goes in `clientRefId` and in the facilitator-signed off-chain `Receipt`.
+`ClientRefId` is the decimal u64 the Private Payments API's `clientRefId` field takes: digits only, encrypted inside the rollup, returned by no read endpoint. A channel's reference is derived by `@wakeless/scheme` (`clientRefOf`: the first eight bytes of the base58 channel id read as a little-endian u64) and handed to the binding as a `ClientRefId`; the binding derives nothing from a channel id. A binding never writes a Memo instruction; receipt data goes in `clientRefId` and in the facilitator-signed off-chain `Receipt`.
 
 The three calls take three refinements of `ClientRef { id }`:
 
 - `DepositRef` adds `buyer`, `amount` and the client-signed `transaction` (base64). The enclave returns neither sender, amount nor `clientRefId` for an ephemeral transaction, so a binding verifies the buyer and the amount from the signed transaction the x402 `deposit` payload carries, confirms the signature landed, and checks the escrow's private-balance delta. It cannot check the `clientRefId` against the chain; that reference is the facilitator's own bookkeeping.
 - `SettleRef` adds `channelId`, `period` and `cumulative`, which fill the `Receipt`.
 - `refund` takes a plain `ClientRef`.
+
+## The buyer's side
+
+`BuyerBinding` is the one call a buyer makes on a rail: `deposit(to, amount, ref)` builds, signs and submits the private transfer from the buyer's own private balance to the escrow with `ref.id` as the encrypted reference, waits until it is readable, and returns `{ sig, transaction }`, the signature and the signed transaction in base64 wire format exactly as submitted, which the x402 `deposit` payload carries for the facilitator's `readDeposit`. `teeValidator`, when the rail has a TEE, is the identity it attested at construction; `@wakeless/client` refuses an accept whose `extra.teeValidator` differs. `@wakeless/binding-magicblock` implements it as `MagicBlockBuyer`.
+
+```ts
+interface BuyerBinding {
+  id: "magicblock" | "rings" | "privacycash";
+  teeValidator?: Address;
+  network(): Caip2;
+  deposit(to: Address, amount: bigint, ref: ClientRef): Promise<{ sig: Signature; transaction: string }>;
+}
+```
 
 ## Observer view
 

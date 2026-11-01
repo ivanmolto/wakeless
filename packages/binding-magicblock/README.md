@@ -32,13 +32,28 @@ const binding = await MagicBlockBinding.create({
 
 | Method | API and rollup calls | Notes |
 | --- | --- | --- |
-| `readDeposit(sig, ref)` | TEE `getTransaction`; `GET /v1/spl/private-balance` | The enclave returns only existence and success for an ephemeral signature (no accounts, no amounts, no `clientRefId`), so the buyer and the amount are verified from the client-signed transaction in `ref.transaction`: the signature must match `sig`, the buyer must have signed, an SPL transfer must pay the escrow's token account the exact amount, and no Memo instruction may be present. Then the transfer must have landed with `err: null`, and the escrow's private balance must have grown by at least the amount since the last attribution. Each signature is credited once. The `clientRefId` itself cannot be checked against the chain; it is the facilitator's bookkeeping |
+| `readDeposit(sig, ref)` | TEE `getTransaction`; `GET /v1/spl/private-balance` | The enclave returns only existence and success for an ephemeral signature (no accounts, no amounts, no `clientRefId`), so the buyer and the amount are verified from the client-signed transaction in `ref.transaction`: the signature must match `sig`, the buyer must have signed, an SPL transfer must pay the escrow's token account the exact amount, and no Memo instruction may be present. Then the transfer must have landed with `err: null`, and the escrow's private balance must have grown by at least the amount since the last attribution. Each signature is credited once. Bytes that do not decode as a transaction are not the one behind `sig` and answer `null`. The `clientRefId` itself cannot be checked against the chain; it is the facilitator's bookkeeping |
 | `settle(to, amount, ref)` | `POST /v1/spl/transfer` (private, ephemeral → ephemeral, `clientRefId` = period); TEE `sendTransaction`, `getTransaction` | `minDelayMs`/`maxDelayMs` are two points drawn inside the configured window (default 30 s to 5 min); `split` is 1 under 2 USDC, one per whole USDC above, capped at 5. On the ephemeral → ephemeral route these shape nothing today (the transfer executes at once); they are sent so the queued route, when it applies, is shaped. Returns the `Receipt` |
 | `refund(to, amount, ref)` | Same private transfer, no shaping | Deposit minus settled, back to the buyer's private balance |
 | `privateBalance()` | `GET /v1/spl/private-balance` | Base units as `bigint` |
 | `observe(sig)` | Base RPC `getTransaction` (`jsonParsed`) | Program ids, signers, plaintext token amounts and recipients, Memo text, system transfers. A signature that executed inside the rollup is not on the base layer: `onBaseLayer: false`, all lists empty |
 
 The binding never sets the API's `memo` field; the contract test asserts it on every request and decodes every submitted transaction. Receipt data goes in `clientRefId` and in the off-chain `Receipt`.
+
+## The buyer's rail
+
+`MagicBlockBuyer` implements `BuyerBinding` for the buyer: the same devnet-only checks, TEE attestation and two logins as the escrow's binding, with the buyer keypair, then one call.
+
+```ts
+const rail = await MagicBlockBuyer.create({ network: DEVNET_CAIP2, baseRpcUrl, teeRpcUrl, paymentsApiUrl, mint, buyer: buyerKeyPair });
+const { sig, transaction } = await rail.deposit(escrowAddress, 1_000_000n, { id: clientRefId(clientRef) });
+```
+
+| Method | API and rollup calls | Notes |
+| --- | --- | --- |
+| `deposit(to, amount, ref)` | `GET /v1/spl/private-balance`; `POST /v1/spl/transfer` (private, ephemeral → ephemeral, `clientRefId` = `ref.id`, no shaping); TEE `sendTransaction`, `getTransaction` | Spike step 3b. The buyer's private balance must already hold the amount (`InsufficientPrivateBalanceError` otherwise; the vault deposit that creates it, `POST /v1/spl/deposit`, is a base-layer transaction the rail does not make). The build must be routed to the attested TEE RPC; a `sendTo: "base"` build is refused before signing (`shielded_binding_rejected`, `SEND_TO_BASE`), as is a refused route or an ingress rejection. Returns the signature and the signed wire transaction, which the x402 `deposit` payload carries for the facilitator's `readDeposit` |
+| `privateBalance()` | `GET /v1/spl/private-balance` | The buyer's, base units |
+| `teeValidator` | from attestation | The attested identity; the client compares it with the vendor's `extra.teeValidator` |
 
 ## Failures
 
@@ -61,4 +76,4 @@ The privacy claim is against the public ledger. Three operators see inside: the 
 
 ## Testing
 
-`pnpm test` runs the contract test over a fake transport that answers like the API and the TEE did on devnet (recorded in `docs/spike-log.md`) and fuzzes every parser of external input with fast-check. `pnpm test:devnet` constructs the real binding against the devnet TEE and reads the escrow's private balance; it needs `.env`.
+`pnpm test` runs the contract tests (escrow binding and buyer rail) over a fake transport that answers like the API and the TEE did on devnet (recorded in `docs/spike-log.md`), including the round trip in which the buyer's deposit over the fake wire is what the escrow's `readDeposit` confirms, and fuzzes every parser of external input with fast-check. `pnpm test:devnet` constructs the real binding against the devnet TEE and reads the escrow's private balance; the real buyer deposit confirmed by a facilitator is `packages/facilitator/test/deposit.devnet.test.ts`. Both need `.env`.

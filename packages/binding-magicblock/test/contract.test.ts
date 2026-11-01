@@ -300,7 +300,7 @@ describe("MagicBlockBinding over a fake transport", () => {
     // The source never mentions the field either.
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
-    for (const file of ["binding.ts", "transport.ts", "api.ts", "policy.ts"]) {
+    for (const file of ["binding.ts", "buyer.ts", "session.ts", "transport.ts", "api.ts", "policy.ts"]) {
       expect(readFileSync(resolve(import.meta.dirname, "../src", file), "utf8")).not.toMatch(/\bmemo\s*:/);
     }
   });

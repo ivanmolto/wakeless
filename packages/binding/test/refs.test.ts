@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { channelId, clientRefId, clientRefIdFromChannelId } from "../src/index.js";
+import { channelId, clientRefId } from "../src/index.js";
 
 describe("clientRefId", () => {
   it("accepts any decimal u64 and rejects everything else", () => {
@@ -35,21 +35,17 @@ describe("clientRefId", () => {
 });
 
 describe("channelId", () => {
-  it("is 32 bytes of lowercase hex and its clientRefId is the decimal u64 prefix", () => {
-    const id = channelId("00000000000007d1" + "ff".repeat(24));
-    expect(clientRefIdFromChannelId(id)).toBe("2001");
-    expect(clientRefIdFromChannelId(channelId("ff".repeat(32)))).toBe("18446744073709551615");
+  it("is 32 bytes of lowercase hex", () => {
+    expect(channelId("00000000000007d1" + "ff".repeat(24))).toBe("00000000000007d1" + "ff".repeat(24));
     expect(() => channelId("AB".repeat(32))).toThrow(RangeError);
     expect(() => channelId("ab".repeat(31))).toThrow(RangeError);
   });
 
-  it("prefix derivation holds for every 32-byte id (fuzz)", () => {
-    fc.assert(
-      fc.property(fc.uint8Array({ minLength: 32, maxLength: 32 }), (bytes) => {
-        const hex = Buffer.from(bytes).toString("hex");
-        const expected = Buffer.from(bytes.subarray(0, 8)).readBigUInt64BE().toString();
-        expect(clientRefIdFromChannelId(channelId(hex))).toBe(expected);
-      }),
-    );
+  it("derives no clientRefId: that is the scheme package's job", async () => {
+    // The scheme's `clientRefOf` (base58 id, little-endian u64) is the one derivation;
+    // the binding's earlier big-endian hex helper disagreed with it (docs/DEVIATIONS.md,
+    // task 3.1) and is gone.
+    const binding = await import("../src/index.js");
+    expect("clientRefIdFromChannelId" in binding).toBe(false);
   });
 });

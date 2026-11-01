@@ -2,7 +2,6 @@ export { BINDING_ERROR_CODES, BindingError, isBindingError, type BindingErrorCod
 export {
   channelId,
   clientRefId,
-  clientRefIdFromChannelId,
   type ChannelId,
   type ClientRef,
   type ClientRefId,
@@ -13,6 +12,7 @@ export {
   DEVNET_CAIP2,
   MAINNET_CAIP2,
   type BindingId,
+  type BuyerBinding,
   type Caip2,
   type FeeTransfer,
   type ObserverView,

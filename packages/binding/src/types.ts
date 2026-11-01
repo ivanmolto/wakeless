@@ -86,3 +86,27 @@ export interface SettlementBinding {
   /** What the public ledger shows for a signature; what the watcher checks. */
   observe(sig: Signature): Promise<ObserverView>;
 }
+
+/**
+ * The buyer's side of a rail: the one private transfer a buyer makes, from its own
+ * private balance to the escrow, carrying the channel's `clientRefId`. The client
+ * (`@wakeless/client`) reaches the primitive only through this interface. A rail that
+ * cannot make the deposit privately fails loudly with a `BindingError`; none falls back
+ * to a public transfer.
+ */
+export interface BuyerBinding {
+  readonly id: BindingId;
+  /**
+   * The TEE validator identity the rail attested at construction, when the rail has a
+   * TEE. The client refuses an accept whose `extra.teeValidator` differs.
+   */
+  readonly teeValidator?: Address;
+  network(): Caip2;
+  /**
+   * Builds, signs and submits the private transfer of `amount` base units to `to` with
+   * `ref.id` as the encrypted reference, waits until it is readable, and returns its
+   * signature and the signed transaction in base64 wire format, exactly as submitted,
+   * for the x402 `deposit` payload.
+   */
+  deposit(to: Address, amount: bigint, ref: ClientRef): Promise<{ sig: Signature; transaction: string }>;
+}
