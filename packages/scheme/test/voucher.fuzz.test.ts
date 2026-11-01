@@ -51,7 +51,8 @@ describe("voucher parsers", () => {
         expectTypedError(parseUnsignedVoucher(value));
         expectTypedError(parseBatchVoucher(value));
         expectTypedError(tryEncodeVoucherMessage(value));
-        expect(verifyVoucher(String(pubkey), value as never)).toBe(false);
+        // The key is passed as it comes: `String(pubkey)` would itself throw on `{toString: null}`.
+        expect(verifyVoucher(pubkey as never, value as never)).toBe(false);
       }),
     );
     // Well-shaped objects with arbitrary field contents.
