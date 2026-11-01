@@ -14,7 +14,7 @@ import {
 } from "@wakeless/scheme";
 import type { Context, MiddlewareHandler } from "hono";
 import { decodePaymentSignature } from "./decode.js";
-import { FacilitatorClient, Refusal, UNAVAILABLE, type Supported } from "./facilitator.js";
+import { FacilitatorClient, Refusal, UNAVAILABLE, parseCorrective, type Supported } from "./facilitator.js";
 
 export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
 export const PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE";
@@ -79,6 +79,33 @@ function encode(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString("base64");
 }
 
+/**
+ * `extra` keys that are not terms: `minDeposit` is a target the corrective 402
+ * raises, `channelState` and `voucherState` travel on a corrective 402 only. A
+ * buyer echoing a corrective entry as `accepted` has still accepted this route's
+ * terms, so they are left out of the match.
+ */
+const NOT_TERMS: readonly string[] = ["minDeposit", "channelState", "voucherState"];
+
+function terms(entry: unknown): unknown {
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
+  const { extra, ...rest } = entry as Record<string, unknown>;
+  if (typeof extra !== "object" || extra === null || Array.isArray(extra)) return entry;
+  const kept = Object.fromEntries(Object.entries(extra).filter(([key]) => !NOT_TERMS.includes(key)));
+  return { ...rest, extra: kept };
+}
+
+/** The two `/verify` verdicts that make the next 402 corrective (briefing §3, rows 1 and 2). */
+const CORRECTIVE_CODES: ReadonlySet<string> = new Set([SCHEME_ERROR_CODES.cumulativeAmountMismatch, SCHEME_ERROR_CODES.cumulativeExceedsDeposit]);
+
+/** `payload.voucher.maxClaimableAmount` as the buyer sent it, when it is a u64. */
+function cumulativeOf(payload: Readonly<Record<string, unknown>>): bigint | undefined {
+  const voucher = payload.voucher;
+  if (typeof voucher !== "object" || voucher === null) return undefined;
+  const parsed = parseU64((voucher as Record<string, unknown>).maxClaimableAmount, "maxClaimableAmount", SCHEME_ERROR_CODES.invalidPayload);
+  return parsed.ok ? parsed.value : undefined;
+}
+
 function compile(path: string): RegExp {
   const source = path
     .split("/")
@@ -141,6 +168,30 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
     return [shielded, { scheme: "batch-settlement", ...common, extra: { ...supported.public, withdrawDelay, tokenProgram } }];
   }
 
+  /**
+   * The corrective 402's entries (`docs/SCHEME.md` §4.2): the shielded entry the buyer
+   * paid against carries the channel as the facilitator holds it and the buyer's last
+   * accepted voucher, so the buyer resynchronises its cumulative; above the deposit it
+   * also carries the deposit target that makes the refused voucher fit: the route's
+   * `minDeposit` or the shortfall, whichever is larger. Nothing here reaches the ledger.
+   */
+  function correctiveAccepts(accepts: readonly Accept[], paid: Accept, route: Route, code: string, verdictExtra: unknown, payload: Readonly<Record<string, unknown>>): readonly Accept[] {
+    if (paid.scheme !== SCHEME_ID) return accepts;
+    const corrective = parseCorrective(verdictExtra);
+    let minDeposit = route.minDeposit;
+    if (code === SCHEME_ERROR_CODES.cumulativeExceedsDeposit && corrective !== undefined) {
+      const cumulative = cumulativeOf(payload);
+      const shortfall = cumulative === undefined ? 0n : cumulative - BigInt(corrective.channelState.balance);
+      if (shortfall > BigInt(route.minDeposit)) minDeposit = shortfall.toString();
+    }
+    const extra: PaymentRequirements["extra"] = {
+      ...paid.extra,
+      minDeposit,
+      ...(corrective === undefined ? {} : { channelState: corrective.channelState, ...(corrective.voucherState === undefined ? {} : { voucherState: corrective.voucherState }) }),
+    };
+    return accepts.map((entry) => (entry === paid ? { ...paid, extra } : entry));
+  }
+
   /** A 402. `accepts` is empty when the facilitator cannot be reached, so no client deposits into a channel it cannot use. */
   function paymentRequired(c: Context, accepts: readonly Accept[], refusal?: Refusal, settlement?: unknown): Response {
     const required: VendorPaymentRequired = {
@@ -176,25 +227,22 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
     const accepts = acceptsFor(route, supported);
     if (decoded === undefined) return paymentRequired(c, accepts);
 
-    // The buyer's copy of the terms is never what gets verified: price and payTo are this route's own.
-    const accepted = accepts.find((entry) => isDeepStrictEqual(entry, decoded.value.accepted));
+    // The buyer's copy of the terms is never what gets verified: price and payTo are this route's
+    // own, and the entry forwarded as `accepted` is the route's, whichever target the buyer saw.
+    const offered = terms(decoded.value.accepted);
+    const accepted = accepts.find((entry) => isDeepStrictEqual(terms(entry), offered));
     if (accepted === undefined) {
       return paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.invalidPaymentRequirements, "accepted is not an entry this route offers", false));
     }
-    const request = { x402Version: X402_VERSION, paymentPayload: decoded.value, paymentRequirements: accepted };
+    const request = { x402Version: X402_VERSION, paymentPayload: { ...decoded.value, accepted }, paymentRequirements: accepted };
 
     const verdict = await facilitator.post("/verify", request);
     if (verdict instanceof Refusal) return paymentRequired(c, verdict.code === UNAVAILABLE.code ? [] : accepts, verdict);
     if (verdict.isValid !== true) {
-      return paymentRequired(
-        c,
-        accepts,
-        new Refusal(
-          typeof verdict.invalidReason === "string" ? verdict.invalidReason : SCHEME_ERROR_CODES.unexpectedVerifyError,
-          typeof verdict.invalidMessage === "string" ? verdict.invalidMessage : "the voucher was not accepted",
-          verdict.retryable === true,
-        ),
-      );
+      const code = typeof verdict.invalidReason === "string" ? verdict.invalidReason : SCHEME_ERROR_CODES.unexpectedVerifyError;
+      const refusal = new Refusal(code, typeof verdict.invalidMessage === "string" ? verdict.invalidMessage : "the voucher was not accepted", verdict.retryable === true);
+      const entries = CORRECTIVE_CODES.has(code) ? correctiveAccepts(accepts, accepted, route, code, verdict.extra, decoded.value.payload) : accepts;
+      return paymentRequired(c, entries, refusal);
     }
 
     await next();

@@ -1,4 +1,14 @@
-import { DEVNET_CAIP2, SCHEME_ERROR_CODES, SCHEME_ID, X402_VERSION, decodeBase58Exact, type BindingId } from "@wakeless/scheme";
+import {
+  DEVNET_CAIP2,
+  SCHEME_ERROR_CODES,
+  SCHEME_ID,
+  X402_VERSION,
+  decodeBase58Exact,
+  parseU64,
+  type BindingId,
+  type ChannelState,
+  type VoucherState,
+} from "@wakeless/scheme";
 
 /** The `/supported` fields a shielded accept copies (`docs/SCHEME.md` §4.4). */
 export interface ShieldedKind {
@@ -74,6 +84,35 @@ export function parseSupported(body: unknown): Supported | Refusal {
     shielded: { escrowAddress, binding, teeValidator, privacyFeeBps, ...(maxIdleSecs !== undefined ? { maxIdleSecs } : {}) },
     ...(hasPublic ? { public: plain.extra as PublicKind } : {}),
   };
+}
+
+/** What a corrective `/verify` verdict carries and the corrective 402 copies (`docs/SCHEME.md` §4.2). */
+export interface Corrective {
+  readonly channelState: ChannelState & { readonly chargedCumulativeAmount: string };
+  readonly voucherState?: VoucherState;
+}
+
+function isU64String(value: unknown): value is string {
+  return parseU64(value, "u64", SCHEME_ERROR_CODES.invalidPayload).ok;
+}
+
+/**
+ * The `extra` of a corrective `/verify` verdict, or `undefined` when it is not
+ * one the seller can copy. The facilitator is this seller's own, but its answer
+ * is still data: nothing travels onto the 402 that is not the expected shape.
+ * Never throws.
+ */
+export function parseCorrective(extra: unknown): Corrective | undefined {
+  if (!isObject(extra)) return undefined;
+  const { channelId, balance, totalClaimed, withdrawRequestedAt, chargedCumulativeAmount, voucherState } = extra;
+  if (!isAddress(channelId) || !isU64String(balance) || !isU64String(totalClaimed) || !isU64String(chargedCumulativeAmount)) return undefined;
+  if (withdrawRequestedAt !== null && !isCount(withdrawRequestedAt)) return undefined;
+  const channelState = { channelId, balance, totalClaimed, withdrawRequestedAt, chargedCumulativeAmount };
+  if (voucherState === undefined) return { channelState };
+  if (!isObject(voucherState)) return undefined;
+  const { signedMaxClaimable, expiresAt, signature } = voucherState;
+  if (!isU64String(signedMaxClaimable) || !isCount(expiresAt) || decodeBase58Exact(signature, 64) === null) return undefined;
+  return { channelState, voucherState: { signedMaxClaimable, expiresAt, signature: signature as string } };
 }
 
 /**

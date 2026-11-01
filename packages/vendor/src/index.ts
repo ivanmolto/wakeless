@@ -1,5 +1,5 @@
 export { MAX_PAYMENT_SIGNATURE_LENGTH, decodePaymentSignature, type DecodedPayment } from "./decode.js";
-export { Refusal, parseSupported, type PublicKind, type ShieldedKind, type Supported } from "./facilitator.js";
+export { Refusal, parseCorrective, parseSupported, type Corrective, type PublicKind, type ShieldedKind, type Supported } from "./facilitator.js";
 export {
   DEFAULT_FACILITATOR_TIMEOUT_MS,
   DEFAULT_MAX_TIMEOUT_SECONDS,
