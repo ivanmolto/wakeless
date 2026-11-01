@@ -346,7 +346,7 @@ Top-level fields are the core ones unchanged (`specs/x402-specification-v2.md:L1
 
 `voucher`: unchanged from the spec (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L545`-`L552`).
 
-`SettlementResponse` for a voucher: `{success: true, transaction: "", network, payer, extra: {commitmentId: "<channelId>:<watermark>", chargedAmount, channelState}}`, which is the spec's voucher-only response (`:L700`-`L725`). For a deposit, `transaction` carries the deposit signature and `amount` the confirmed deposit (`:L1115`-`L1136`). The facilitator-signed off-chain receipt that the briefing names travels under `extra` too (its key is fixed in task 3.1); with `clientRefId` it is the only other place receipt data goes (`CLAUDE.md`, Privacy rules).
+`SettlementResponse` for a voucher: `{success: true, transaction: "", network, payer, extra: {commitmentId: "<channelId>:<watermark>", chargedAmount, channelState}}`, which is the spec's voucher-only response (`:L700`-`L725`). For a deposit, `transaction` carries the deposit signature and `amount` the confirmed deposit (`:L1115`-`L1136`). The facilitator-signed off-chain receipt that the briefing names travels under `extra` too, as `extra.receipt` (`{channelId, cumulative, period, signature}`, fixed by task 3.1 in `packages/scheme`); with `clientRefId` it is the only other place receipt data goes (`CLAUDE.md`, Privacy rules).
 
 ### 4.4 `/supported`
 
