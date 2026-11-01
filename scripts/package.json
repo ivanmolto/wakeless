@@ -4,8 +4,15 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@hono/node-server": "2.1.5",
     "@magicblock-labs/ephemeral-rollups-kit": "0.17.3",
     "@solana-program/token": "0.18.0",
-    "@solana/kit": "8.6.0"
+    "@solana/kit": "8.6.0",
+    "@wakeless/binding": "workspace:*",
+    "@wakeless/binding-magicblock": "workspace:*",
+    "@wakeless/client": "workspace:*",
+    "@wakeless/facilitator": "workspace:*",
+    "@wakeless/scheme": "workspace:*",
+    "@wakeless/vendors": "workspace:*"
   }
 }
