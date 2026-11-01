@@ -2,7 +2,46 @@
 
 Status: devnet alpha, unaudited
 
-The facilitator's state. This task adds the two stores; the HTTP endpoints follow. Both interfaces are modelled on `ChannelStore` and `BatchOperationStore` in `@x402/svm`'s batch-settlement server, and both have an in-memory and a Redis implementation that pass one shared test suite.
+The Wakeless facilitator: the x402 V2 facilitator endpoints (`GET /supported`, `POST /verify`, `POST /settle`) for the `batch-settlement-shielded` scheme, over channel and operation stores with an in-memory and a Redis implementation. A Hono app; the process entry serves it with `@hono/node-server` on `127.0.0.1`.
+
+```bash
+pnpm --filter @wakeless/facilitator start
+```
+
+Reads `.env` at the repo root: `SOLANA_RPC_URL` (Helius devnet), `USDC_MINT`, `ESCROW_KEYPAIR` (default `keys/escrow.json`, never under `keys/mainnet/`), optional `MAGICBLOCK_TEE_RPC`, `MAGICBLOCK_PAYMENTS_API`, `REDIS_URL` (memory stores when unset), `FACILITATOR_PORT` (default 4020), `ATTESTATION_REPORT_PATH` (default `docs/attestation-facilitator.json`, written on every start; `docs/attestation-devnet.json` is the spike's report and keeps the raw quote). Devnet only: a mainnet RPC hostname or `MAINNET_ENABLED=true` refuses to start.
+
+Starting builds the MagicBlock binding, which verifies TEE attestation first. If attestation fails the process still serves, so a vendor learns why instead of a refused connection: `/supported` has `kinds: []` and `extra.error: "shielded_attestation_failed"`, and `/verify` and `/settle` answer 503 with that code. Nothing is settled without an attested binding, and nothing is ever simulated.
+
+## Endpoints
+
+`GET /supported` returns the spec's `{kinds, extensions, signers}` with one kind, `{x402Version: 2, scheme: "batch-settlement-shielded", network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", extra: {escrowAddress, binding: "magicblock", teeValidator, privacyFeeBps: 10, maxIdleSecs: 604800}}`. `escrowAddress` and `teeValidator` come from the binding's attestation, not from configuration. `signers["solana:*"]` lists the receipt signer once a later task adds one.
+
+`POST /verify` and `POST /settle` take the standard envelope `{x402Version: 2, paymentPayload, paymentRequirements}`, with `paymentPayload.accepted` equal to `paymentRequirements`. The inner `payload` is `voucher` or `deposit` (`docs/SCHEME.md` §4.3).
+
+- **`/verify` reads and never writes payment state.** For a voucher it recomputes the channel id from `channelConfig` and `extra.escrowAddress`, checks the voucher names it and the buyer signed it, loads the channel and applies `nextWatermark` to the record as stored. For a deposit it validates the deposit object (signature shape, positive amount) and checks the first voucher against the claimed deposit plus any confirmed deposit, without confirming anything; `minDeposit` is not enforced by the facilitator (`docs/SCHEME.md` §1.2). A valid payload enters a short-lived verified set keyed by the payload hash for `maxTimeoutSeconds`. The response is the spec's `{isValid, payer, extra: {channelId, balance, totalClaimed, withdrawRequestedAt}}`.
+- **`/settle` of a voucher** requires a valid `/verify` of the same payload within `maxTimeoutSeconds` (the authorization flow); without one it fails with `shielded_verify_required`. It then moves the watermark inside the store's atomic per-channel update, running the same checks on the record as stored, and stores `latestVoucher`. The response is `{success: true, transaction: "", network, payer, extra: {commitmentId: "<channelId>:<watermark>", chargedAmount, channelState}}`.
+- **`/settle` of a deposit** passes the checked payload, the channel id and the `clientRefId` to the deposit handler (task 4.1, over `binding.readDeposit`). A server without one answers 500 `unexpected_settle_error` and settles nothing.
+- **Idempotent `/settle`.** Results are stored by payload hash (sha256 of the canonical JSON of `{paymentPayload, paymentRequirements}`, key order independent). A repeated identical payload gets the stored result with `extra.replayed: true` and moves nothing; two identical requests in flight settle once. The same voucher sent in a different envelope is not a replay and fails on the watermark as `invalid_batch_settlement_svm_cumulative_amount_mismatch`.
+
+The verified set and the stored results are in memory and per process: with several facilitator processes, a vendor must reach the same one for verify and settle until a hardening task shares them.
+
+## Errors
+
+Every refused request carries `{error, code, retryable}`: `code` is a scheme error code (`docs/SCHEME.md` §1.5), `error` a short message that never echoes a signature, a token, a key or a channel amount, and `retryable` is true only for `unexpected_verify_error`, `unexpected_settle_error` and `settlement_pending`.
+
+| What | Status | Body |
+| --- | --- | --- |
+| A verdict on the payment (bad signature, unknown channel, stale cumulative, closing channel, wrong payload type, deposit object malformed, settle without verify) | 200 | The spec's own shape, `{isValid: false, invalidReason, invalidMessage, payer}` or `{success: false, errorReason, errorMessage, transaction: "", network, payer}`, plus `error`, `code` and `retryable` beside it |
+| A malformed envelope or requirements (not JSON, `x402Version` not 2, another scheme or network, `accepted` differs from `paymentRequirements`, another escrow, `withdrawDelay` out of range, server mode) | 400 | `{error, code, retryable}` |
+| No attested binding | 503 | `{error, code: "shielded_attestation_failed", retryable: false}` |
+| Unknown route | 404 | `{error, code, retryable}` |
+| A facilitator fault | 500 | `{error: "internal error", code: "unexpected_verify_error" \| "unexpected_settle_error", retryable: true}` |
+
+Stock x402 facilitator clients accept both: a 200 verdict is parsed as the spec's response, and a non-2xx body is surfaced with its status.
+
+## Stores
+
+Both interfaces are modelled on `ChannelStore` and `BatchOperationStore` in `@x402/svm`'s batch-settlement server, and both have an in-memory and a Redis implementation that pass one shared test suite.
 
 ```ts
 const { channels, operations, close } = createMemoryStores();
@@ -19,7 +58,13 @@ await channels.update(channelId, (current) => {
 - **Operation lifecycle.** `pending` goes to `confirmed`, `failed` or `rejected`; `failed` goes back to `pending`, and entering `failed` adds one to `attempts`. `confirmed` and `rejected` are terminal, so a rejected private transfer cannot be retried through the store. `pending` means a transfer may be in flight: a worker moves an operation to `pending` before it calls the binding, and at startup reconciles every `pending` operation against the binding before sending anything. A `failed` record is at rest, so it is the only state a retry starts from.
 - **What Redis holds.** Channel amounts and voucher signatures, unencrypted, under the facilitator's own trust boundary: the facilitator is one of the three operators who see inside (with MagicBlock's enclave and NEAR's private shard). Point it at a server only the facilitator can reach. Store errors name fields and ids, never amounts or signatures.
 
+## Logs
+
+One line per request: method, path, status, error code and the payload hash, sometimes a channel id. Never a payload field, a signature, a token or an amount; the HTTP tests scan the captured lines for 87- and 88-character base58 strings.
+
 ## Tests
+
+`test/http.test.ts` runs the app in process over a binding fake that answers only `network()` and `escrowAddress()` (nothing is transferred in a unit test; the privacy primitive is never simulated). `test/request.fuzz.test.ts` fuzzes the envelope and payload parsers with fast-check.
 
 The Redis half of `test/stores.contract.test.ts` skips with a printed reason unless `REDIS_URL` is set. It writes only under a per-run key prefix, deletes those keys afterwards, and never flushes.
 
