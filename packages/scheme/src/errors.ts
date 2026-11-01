@@ -47,6 +47,8 @@ export const SCHEME_ERROR_CODES = {
   shieldedBindingRejected: "shielded_binding_rejected",
   /** The binding could not verify the TEE; it does not start and `/supported` is empty. */
   shieldedAttestationFailed: "shielded_attestation_failed",
+  /** `/settle` of a voucher with no valid `/verify` of the same payload within `maxTimeoutSeconds`. */
+  shieldedVerifyRequired: "shielded_verify_required",
 } as const;
 
 export type SchemeErrorCode = (typeof SCHEME_ERROR_CODES)[keyof typeof SCHEME_ERROR_CODES];

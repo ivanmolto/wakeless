@@ -177,6 +177,8 @@ export interface SettlementExtra {
   readonly channelState?: ChannelState;
   /** The key fixed by task 3.1 for the off-chain receipt. */
   readonly receipt?: SettlementReceipt;
+  /** `true` when `/settle` answered a repeated identical payload with its stored result. */
+  readonly replayed?: boolean;
 }
 
 /** `PAYMENT-RESPONSE` (`specs/x402-specification-v2.md:L244`-`L253`; SVM fields under `extra`). */
