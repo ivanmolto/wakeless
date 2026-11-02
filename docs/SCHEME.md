@@ -176,6 +176,8 @@ New codes take the `shielded_` prefix (`CLAUDE.md`, Standards and specs): `shiel
 
 A fourth, `shielded_rate_limited` (task 6.3), is the facilitator's HTTP 429: the caller's address or the channel the payload names is over a configurable limit; the body is `{error, code, retryable: true}` and the response carries `Retry-After` in seconds. The spec defines no rate-limit code; the same request is sent again unchanged after the wait (`docs/RECOVERY.md`).
 
+A sixth, `shielded_unauthorized` (task 7.2), is the facilitator's HTTP 401 or 403 on its token-protected routes, `GET /receipts/:channelId` (vendor token) and `/admin/*` (admin token, loopback only). The spec's three endpoints carry no authentication and are unchanged; these routes are Wakeless additions (§4.5). `retryable: false`: the same request with the same token is refused again.
+
 A fifth, `shielded_facilitator_unavailable` (task 4.2), is the vendor middleware's: a `402` with `retryable: true` and an empty `accepts[]` when the facilitator is unreachable, times out or answers 5xx. The spec defines no code for this; the briefing's failure table has it as a transport failure on which the server fails closed.
 
 Error bodies (task 3.3). Every refused facilitator request carries `{error, code, retryable}`, `code` being one of the codes above. A verdict on the payment keeps the spec's shape (`{isValid: false, invalidReason, …}`, `{success: false, errorReason, …}`) with those three fields beside it and status 200; a malformed envelope is 400, an unattested binding 503, a facilitator fault 500 (`specs/transports-v2/http.md`, Error Handling). The core spec defines no error body for the facilitator endpoints beyond the two response shapes; the triple is a Wakeless addition recorded in `docs/DEVIATIONS.md`.
@@ -354,7 +356,7 @@ The corrective 402 (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.
 
 `voucher`: unchanged from the spec (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L545`-`L552`).
 
-`SettlementResponse` for a voucher: `{success: true, transaction: "", network, payer, extra: {commitmentId: "<channelId>:<watermark>", chargedAmount, channelState}}`, which is the spec's voucher-only response (`:L700`-`L725`). For a deposit, `transaction` carries the deposit signature and `amount` the confirmed deposit (`:L1115`-`L1136`). The facilitator-signed off-chain receipt that the briefing names travels under `extra` too, as `extra.receipt` (`{channelId, cumulative, period, signature}`, fixed by task 3.1 in `packages/scheme`); with `clientRefId` it is the only other place receipt data goes (`CLAUDE.md`, Privacy rules).
+`SettlementResponse` for a voucher: `{success: true, transaction: "", network, payer, extra: {commitmentId: "<channelId>:<watermark>", chargedAmount, channelState}}`, which is the spec's voucher-only response (`:L700`-`L725`). For a deposit, `transaction` carries the deposit signature and `amount` the confirmed deposit (`:L1115`-`L1136`). The facilitator-signed off-chain receipt that the briefing names is `SettlementReceipt` (`packages/scheme`, §4.5): it is produced by the redemption worker once per channel period, served by `GET /receipts/:channelId`, and may travel under `extra.receipt` of a later `SettlementResponse`; with `clientRefId` it is the only other place receipt data goes (`CLAUDE.md`, Privacy rules).
 
 ### 4.4 `/supported`
 
@@ -379,4 +381,18 @@ The corrective 402 (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.
 }
 ```
 
-Shape per `specs/x402-specification-v2.md:L481`-`L494`. The server copies `escrowAddress`, `binding`, `teeValidator`, `privacyFeeBps` and `maxIdleSecs` into its accept, the way the SVM server copies `feePayer` and the capacities (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L1178`-`L1183`). If the binding failed attestation, `kinds` is empty and `extra.error` is `shielded_attestation_failed` (plan task 4.3). With no kind to hang it on, that `extra` is a top-level field of the response, `{kinds: [], extensions: [], signers: {}, extra: {error}}`; the spec's `SupportedResponse` has no top-level `extra` (`specs/x402-specification-v2.md:L481`-`L494`), so this is a Wakeless addition (`docs/DEVIATIONS.md`, task 3.3).
+Shape per `specs/x402-specification-v2.md:L481`-`L494`. The server copies `escrowAddress`, `binding`, `teeValidator`, `privacyFeeBps` and `maxIdleSecs` into its accept, the way the SVM server copies `feePayer` and the capacities (`specs/schemes/batch-settlement/scheme_batch_settlement_svm.md:L1178`-`L1183`). If the binding failed attestation, `kinds` is empty and `extra.error` is `shielded_attestation_failed` (plan task 4.3). With no kind to hang it on, that `extra` is a top-level field of the response, `{kinds: [], extensions: [], signers: {}, extra: {error}}`; the spec's `SupportedResponse` has no top-level `extra` (`specs/x402-specification-v2.md:L481`-`L494`), so this is a Wakeless addition (`docs/DEVIATIONS.md`, task 3.3). `signers["solana:*"]` is the receipt signer's public key (task 7.2), the key every receipt of §4.5 verifies against; the spec gives `signers` to the facilitator's transaction signers, and Wakeless has none, since no facilitator-signed transaction exists.
+
+### 4.5 Redemption and receipts (task 7.2)
+
+The SVM scheme's claim and settle instructions (S13, S14) collapse into one private transfer escrow → vendor per channel per period, made by the facilitator's redemption worker through `binding.settle` every `REDEEM_INTERVAL` (60 s in the demo, 3600 s in production) or on `POST /admin/redeem`. For an open channel with `accepted > settled`, `owed = accepted − settled` and the vendor receives `amount = owed − ⌊owed × privacyFeeBps / 10000⌋`; the fee stays in the escrow. One transfer per channel per run, the binding choosing split and delay; `settled` moves to the period's cumulative on confirmation. A rail refusal (`shielded_binding_rejected`) is terminal for that period and the channel is not redeemed again by the worker; nothing is retried as a public transfer.
+
+`SettlementReceipt` is `{channelId, period, cumulative, amount, signature, facilitatorSignature}`: the channel id (base58), the period (1-based), the channel's settled watermark after the period (gross, decimal u64), what the vendor received (net, decimal u64), the private transfer's signature (base58, 64 bytes) and the facilitator's Ed25519 signature over the 122-byte message
+
+```
+0x52 0x01 || channelId (32) || u64(period).le || u64(cumulative).le || u64(amount).le || signature (64)
+```
+
+The magic bytes are the domain separator, distinct from the voucher's `0x56 0x01`, so neither message verifies as the other. `signReceipt` and `verifyReceipt` live in `packages/scheme`; the public key is `/supported` `signers["solana:*"][0]`. The vendor fetches its receipts from `GET /receipts/:channelId` with its bearer token (`FACILITATOR_RECEIPT_TOKENS`) and answers `{channelId, signer, receipts}`; a channel that is not that vendor's is 404 whatever its state. The receipt is the vendor's evidence of payment beside its private-balance delta, since the rail exposes no reference to the recipient (§4.3). It is never logged, never written to chain and never in a Memo.
+
+Supersedes task 3.1's `{channelId, cumulative, period, signature}` shape, in which `signature` was the facilitator's (`docs/DEVIATIONS.md`, 7.2): the worker has the transfer signature, the vendor needs it to match its balance movement, and a receipt that binds the facilitator to one transfer is the stronger document.
