@@ -51,6 +51,12 @@ export interface TrajectoryEntry {
   readonly fundingSource?: string;
   /** Set when this request carried a deposit (an opening or a top-up): its amount. */
   readonly deposit?: string;
+  /**
+   * With `deposit`: the private transfer's signature, kept so the watcher can run its
+   * four checks on a recorded run later. Owner's file only; a published trajectory
+   * strips it (`scripts/agent-run.ts`), and it never reaches a log line.
+   */
+  readonly depositSignature?: string;
 }
 
 interface StoreFile {
@@ -87,7 +93,9 @@ function isChannel(value: unknown): value is LocalChannel {
 }
 
 function isEntry(value: unknown): value is TrajectoryEntry {
-  return isObject(value) && typeof value.vendor === "string" && typeof value.route === "string" && typeof value.amount === "string" && typeof value.cumulative === "string" && typeof value.timestamp === "string";
+  if (!isObject(value) || typeof value.vendor !== "string" || typeof value.route !== "string" || typeof value.amount !== "string" || typeof value.cumulative !== "string" || typeof value.timestamp !== "string") return false;
+  if (value.depositSignature !== undefined && (typeof value.depositSignature !== "string" || value.deposit === undefined)) return false;
+  return true;
 }
 
 function unreadable(reason: string): WakelessClientError {

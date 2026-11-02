@@ -200,6 +200,7 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
       const cumulative = accepted + charge;
       let payload: ShieldedPayload;
       let depositAmount: bigint | undefined;
+      let depositSignature: string | undefined;
 
       if (channel === undefined) {
         const amount = max(target(echo), cumulative);
@@ -223,6 +224,7 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
         log(`deposit made for channel ${channel.channelId}`);
         payload = opened.payload;
         depositAmount = amount;
+        depositSignature = opened.signature;
       } else if (channel.pendingDeposit !== undefined) {
         // Made, not yet credited: the same transfer again with a voucher at the current watermark.
         const pending = channel.pendingDeposit;
@@ -231,6 +233,7 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
         log(`deposit resent for channel ${channel.channelId}`);
         payload = resend;
         depositAmount = BigInt(pending.amount);
+        depositSignature = pending.signature;
       } else if (cumulative > balance) {
         if (topUps >= 1) break;
         topUps++;
@@ -241,6 +244,7 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
         log(`top-up made for channel ${channel.channelId}`);
         payload = topped.payload;
         depositAmount = amount;
+        depositSignature = topped.signature;
       } else {
         payload = { type: "voucher", channelConfig: configOf(channel, accept), voucher: signVoucher(buyer, { channelId: channel.channelId, maxClaimableAmount: cumulative.toString(), expiresAt: 0 }) };
       }
@@ -265,6 +269,7 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
           timestamp: now().toISOString(),
           ...(options.fundingSource === undefined ? {} : { fundingSource: options.fundingSource }),
           ...(depositAmount === undefined ? {} : { deposit: depositAmount.toString() }),
+          ...(depositSignature === undefined ? {} : { depositSignature }),
         });
         log(`paid ${channel.channelId} ${response.status}`);
         return response;

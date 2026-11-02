@@ -16,7 +16,7 @@ const pay = wrapFetchWithWakeless(fetch, {
 });
 
 const res = await pay("http://127.0.0.1:4021/price/SOL"); // 402 → deposit → 200; then 402 → voucher → 200
-pay.getTrajectory(); // [{ vendor, route, amount, cumulative, timestamp, fundingSource?, deposit? }, ...]
+pay.getTrajectory(); // [{ vendor, route, amount, cumulative, timestamp, fundingSource?, deposit?, depositSignature? }, ...]
 pay.getChannels();   // the channels this buyer holds, as the local file records them
 ```
 
@@ -31,7 +31,7 @@ pay.getChannels();   // the channels this buyer holds, as the local file records
 
 ## The channel file
 
-`~/.wakeless/channels.json` by default (`channelStoreLocal`), written whole through a temp file and rename, mode 0600, directory 0700. Keyed by `buyer:vendor:mint`: `salt`, `channelId`, `escrowAddress`, the confirmed `deposit`, the `accepted` watermark, a `pendingDeposit` when one exists, and the trajectory of paid requests. No key material and no tokens. A file that is not this format is refused with `shielded_client_store_unreadable` and never overwritten. One buyer process at a time: two processes over one file do not coordinate.
+`~/.wakeless/channels.json` by default (`channelStoreLocal`), written whole through a temp file and rename, mode 0600, directory 0700. Keyed by `buyer:vendor:mint`: `salt`, `channelId`, `escrowAddress`, the confirmed `deposit`, the `accepted` watermark, a `pendingDeposit` when one exists, and the trajectory of paid requests. An entry that carried a deposit keeps the private transfer's signature (`depositSignature`), so the watcher's four checks can run on a recorded run later; it stays in this file, out of every log line, and `scripts/agent-run.ts` strips it from the trajectory it publishes under `docs/runs/`. No key material and no tokens. A file that is not this format is refused with `shielded_client_store_unreadable` and never overwritten. One buyer process at a time: two processes over one file do not coordinate.
 
 ## Options
 

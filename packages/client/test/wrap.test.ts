@@ -110,6 +110,11 @@ describe("wrapFetchWithWakeless", () => {
     await readJson(await w.pay(URLS[0]!));
     expect(paidEnvelopes(w.seen).at(-1)!.payload.type).toBe("voucher");
     expect(w.rail.calls).toHaveLength(2);
+    // Each deposit entry keeps its transfer's signature for the watcher; a voucher entry has none, and no log line has any.
+    const signatures = w.pay.getTrajectory().map((t) => t.depositSignature);
+    expect(signatures.map((s) => s !== undefined)).toEqual([true, true, false]);
+    expect(new Set(signatures.slice(0, 2)).size).toBe(2);
+    for (const line of w.logs) for (const s of signatures) if (s !== undefined) expect(line).not.toContain(s);
   });
 
   it("a corrective mismatch resynchronises the watermark without a top-up", async () => {
