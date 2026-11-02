@@ -4,6 +4,7 @@
 // Every signature either side's binding returns is counted. Each run gets a fresh channel
 // file, so it opens one deposit per vendor at 100 × the route's price (0.6 USDC in all)
 // from the buyer's private balance.
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
@@ -13,7 +14,7 @@ import { address, createKeyPairFromBytes, type Signature } from "@solana/kit";
 import { DEVNET_CAIP2, type BuyerBinding, type ObserverView, type SettlementBinding } from "@wakeless/binding";
 import { MagicBlockBinding, MagicBlockBuyer } from "@wakeless/binding-magicblock";
 import { wrapFetchWithWakeless } from "@wakeless/client";
-import { createDepositHandler, createFacilitatorApp, createMemoryStores } from "@wakeless/facilitator";
+import { createDepositHandler, createFacilitatorApp, createMemoryStores, createRedeemer, type RedeemRunSummary, type Stores } from "@wakeless/facilitator";
 import { publicKeyOf } from "@wakeless/scheme";
 import { VENDORS, startVendors, type RunningVendors } from "@wakeless/vendors";
 import { assertDevnetRpcUrl } from "./devnet.js";
@@ -86,6 +87,16 @@ export function isVisibleOnBaseLayer(view: ObserverView): boolean {
 export interface InProcessRun {
   readonly vendors: RunningVendors;
   readonly pay: ReturnType<typeof wrapFetchWithWakeless>;
+  readonly facilitatorUrl: string;
+  readonly stores: Stores;
+  /** The receipt signer's public key, as `/supported` `signers` lists it. */
+  readonly receiptSigner: string;
+  /** This run's admin bearer token for `POST /admin/redeem` and `GET /admin/alerts`. */
+  readonly adminToken: string;
+  /** This run's receipt bearer token per vendor name, for `GET /receipts/:channelId`. */
+  readonly receiptTokens: Readonly<Record<string, string>>;
+  /** One redemption run through the worker: one private transfer per channel owed. The worker runs on no timer here. */
+  redeem(): Promise<RedeemRunSummary>;
   /** Grows as the run emits: every deposit, settle and refund, in order. */
   readonly signatures: readonly Signature[];
   readonly channelStoreLocal: string;
@@ -118,11 +129,22 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
   const binding = countedEscrow(realBinding, signatures);
   const stores = createMemoryStores();
   const facilitatorLog: string[] = [];
+  const log = (line: string) => facilitatorLog.push(line);
+  // The redemption worker, admin-triggered only here (`redeem()`), with this run's own tokens.
+  const signer = { secretKey: keyBytes("FACILITATOR_KEYPAIR", "keys/facilitator.json") };
+  const redeemer = createRedeemer({ binding, stores, signer, log });
+  const vendorKeys = VENDORS.map((definition) => ({ definition, payTo: publicKeyOf({ secretKey: keyBytes(`${definition.name.toUpperCase()}_KEYPAIR`, `keys/${definition.name}.json`) }) }));
+  const adminToken = randomBytes(24).toString("base64url");
+  const receiptTokens: Record<string, string> = Object.fromEntries(vendorKeys.map((v) => [v.definition.name, randomBytes(24).toString("base64url")]));
   const app = createFacilitatorApp({
     binding: { status: "ready", binding, teeValidator: realBinding.attestation.validatorIdentity! },
     stores,
-    deposits: createDepositHandler({ binding, stores, log: (line) => facilitatorLog.push(line) }),
-    log: (line) => facilitatorLog.push(line),
+    deposits: createDepositHandler({ binding, stores, log }),
+    log,
+    redeemer,
+    adminToken,
+    receiptTokens: new Map(vendorKeys.map((v) => [v.payTo, receiptTokens[v.definition.name]!])),
+    receiptSigners: [redeemer.signer],
   });
   const facilitator = await new Promise<{ url: string; close: () => void }>((done) => {
     const server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info: AddressInfo) => done({ url: `http://127.0.0.1:${info.port}`, close: () => server.close() }));
@@ -130,7 +152,7 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
 
   // The three vendors, each on its own keypair's public key.
   const vendors = await startVendors(
-    VENDORS.map((definition) => ({ definition, payTo: publicKeyOf({ secretKey: keyBytes(`${definition.name.toUpperCase()}_KEYPAIR`, `keys/${definition.name}.json`) }), port: 0 })),
+    vendorKeys.map(({ definition, payTo }) => ({ definition, payTo, port: 0 })),
     { facilitatorUrl: facilitator.url, seed: process.env.VENDORS_SEED || "wakeless" },
   );
 
@@ -156,6 +178,12 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
     return {
       vendors,
       pay,
+      facilitatorUrl: facilitator.url,
+      stores,
+      receiptSigner: redeemer.signer,
+      adminToken,
+      receiptTokens,
+      redeem: () => redeemer.runOnce(),
       signatures,
       channelStoreLocal,
       balanceBefore,

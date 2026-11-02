@@ -35,7 +35,8 @@ async function main(): Promise<number> {
   const rpcUrl = requireEnv("SOLANA_RPC_URL");
   assertDevnetRpcUrl(rpcUrl);
   const usdcMint = address(requireEnv("USDC_MINT"));
-  const wallets = KEY_ROLES.map(({ name, envVar }) => ({ name, publicKey: readPublicKey(envVar, name) }));
+  // The facilitator's receipt signer signs off-chain receipts only and never pays a fee: no SOL.
+  const wallets = KEY_ROLES.filter(({ name }) => name !== "facilitator").map(({ name, envVar }) => ({ name, publicKey: readPublicKey(envVar, name) }));
 
   const rpc = createSolanaRpc(rpcUrl);
   assertDevnetGenesisHash(await rpc.getGenesisHash().send());

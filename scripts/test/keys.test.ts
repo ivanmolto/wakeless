@@ -29,7 +29,7 @@ describe("scripts/keys.ts", () => {
 
   it("keys script prints public keys only", () => {
     const stdout = runKeys(dir);
-    expect(stdout.match(BASE58)).toHaveLength(5);
+    expect(stdout.match(BASE58)).toHaveLength(6);
     expect(stdout).not.toMatch(LONG_BASE58);
     expect(stdout).not.toMatch(/bearer/i);
     expect(stdout).not.toMatch(/\[\s*\d+\s*,/);
@@ -37,7 +37,7 @@ describe("scripts/keys.ts", () => {
 
   it("keys script writes solana-cli keypairs readable only by the owner", () => {
     const stdout = runKeys(dir);
-    for (const name of ["buyer", "escrow", "vendor1", "vendor2", "vendor3"]) {
+    for (const name of ["buyer", "escrow", "vendor1", "vendor2", "vendor3", "facilitator"]) {
       const path = join(dir, `${name}.json`);
       expect(statSync(path).mode & 0o777).toBe(0o600);
       const publicKey = publicKeyFromKeypairJson(readFileSync(path, "utf8"));

@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "keys": "tsx scripts/keys.ts",
+    "tokens": "tsx scripts/tokens.ts",
     "airdrop": "tsx scripts/airdrop.ts",
     "vendors": "pnpm --filter @wakeless/vendors start",
     "client:20": "tsx --conditions=development scripts/client-20.ts",

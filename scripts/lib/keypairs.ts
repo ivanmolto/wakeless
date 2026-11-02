@@ -7,6 +7,8 @@ export const KEY_ROLES = [
   { name: "vendor1", envVar: "VENDOR1_KEYPAIR" },
   { name: "vendor2", envVar: "VENDOR2_KEYPAIR" },
   { name: "vendor3", envVar: "VENDOR3_KEYPAIR" },
+  /** The facilitator's receipt signer (task 7.2). Signs off-chain receipts only; holds no funds. */
+  { name: "facilitator", envVar: "FACILITATOR_KEYPAIR" },
 ] as const;
 
 /** Solana CLI format: a JSON array of 64 bytes, seed then public key. */

@@ -1,4 +1,5 @@
-// Generates the five devnet keypairs if missing. Prints public keys only.
+// Generates the six devnet keypairs if missing (buyer, escrow, three vendors, the facilitator's
+// receipt signer). Prints public keys only.
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
