@@ -36,6 +36,7 @@ app.get("/price/:symbol", (c) => c.json({ price: 1 }));
 | `/verify` passes | The resource runs. A response of 400 or above is returned as it is and nothing settles. Otherwise `/settle`: on success the response goes out with a base64 `PAYMENT-RESPONSE`; on failure it is withheld and replaced by a `402` carrying the code and the failed `PAYMENT-RESPONSE` |
 | Facilitator unreachable, timed out, or answering 5xx, at any step | `402` with code `shielded_facilitator_unavailable`, `retryable: true`, and an empty `accepts[]`, so no client deposits into a channel it cannot use. No resource |
 | Facilitator's binding failed attestation | `402` with code `shielded_attestation_failed`, `retryable: false`, and an empty `accepts[]` |
+| Facilitator answers 429 `shielded_rate_limited` at `/verify` or `/settle` | `402` with that code and `retryable: true`; the resource is withheld (after `/settle`, replaced). The buyer sends the same request again after a wait; `docs/RECOVERY.md` has the rows |
 | Facilitator advertises no devnet kind | `402` with code `shielded_facilitator_unavailable`. A mainnet kind is refused |
 
 A refusal's body is `{error, code, retryable}`, the same triple the facilitator uses; `PaymentRequired.error` in the header holds the same code. Match on the code, never on the message. `shielded_facilitator_unavailable` is a Wakeless code that the x402 specification does not define.

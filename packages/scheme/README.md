@@ -53,7 +53,7 @@ clientRefId = decimal( u64le( channelId[0..8] ) )
 
 ## Error codes
 
-Core x402 V2 codes and the `invalid_batch_settlement_svm_*` codes whose condition exists in the shielded flow are reused verbatim (`SCHEME_ERROR_CODES`), plus `settlement_pending` and `duplicate_settlement`. Two shielded-only codes: `shielded_binding_rejected` (a private call was refused and is never retried, never publicly) and `shielded_attestation_failed` (the binding could not verify the TEE). Clients match on the code, never on message text.
+Core x402 V2 codes and the `invalid_batch_settlement_svm_*` codes whose condition exists in the shielded flow are reused verbatim (`SCHEME_ERROR_CODES`), plus `settlement_pending` and `duplicate_settlement`. Shielded-only codes: `shielded_binding_rejected` (a private call was refused and is never retried, never publicly), `shielded_attestation_failed` (the binding could not verify the TEE), `shielded_verify_required` (`/settle` of a voucher without a `/verify` of the same payload within `maxTimeoutSeconds`) and `shielded_rate_limited` (the facilitator's 429, retryable after `Retry-After`). Clients match on the code, never on message text.
 
 ## Payloads
 

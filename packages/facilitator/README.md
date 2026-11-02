@@ -2,13 +2,13 @@
 
 Status: devnet alpha, unaudited
 
-The Wakeless facilitator: the x402 V2 facilitator endpoints (`GET /supported`, `POST /verify`, `POST /settle`) for the `batch-settlement-shielded` scheme, over channel and operation stores with an in-memory and a Redis implementation. A Hono app; the process entry serves it with `@hono/node-server` on `127.0.0.1`.
+The Wakeless facilitator: the x402 V2 facilitator endpoints (`GET /supported`, `POST /verify`, `POST /settle`) and `GET /health` for the `batch-settlement-shielded` scheme, over channel and operation stores with an in-memory and a Redis implementation. A Hono app; the process entry serves it with `@hono/node-server` on `127.0.0.1`. What a buyer and a seller keep and send again after a `settlement_pending`, a rate limit or a lost answer is in `docs/RECOVERY.md`.
 
 ```bash
 pnpm --filter @wakeless/facilitator start
 ```
 
-Reads `.env` at the repo root: `SOLANA_RPC_URL` (Helius devnet), `USDC_MINT`, `ESCROW_KEYPAIR` (default `keys/escrow.json`, never under `keys/mainnet/`), optional `MAGICBLOCK_TEE_RPC`, `MAGICBLOCK_PAYMENTS_API`, `REDIS_URL` (memory stores when unset), `FACILITATOR_PORT` (default 4020), `ATTESTATION_REPORT_PATH` (default `docs/attestation-facilitator.json`, written on every start; `docs/attestation-devnet.json` is the spike's report and keeps the raw quote). Devnet only: a mainnet RPC hostname or `MAINNET_ENABLED=true` refuses to start.
+Reads `.env` at the repo root: `SOLANA_RPC_URL` (Helius devnet), `USDC_MINT`, `ESCROW_KEYPAIR` (default `keys/escrow.json`, never under `keys/mainnet/`), optional `MAGICBLOCK_TEE_RPC`, `MAGICBLOCK_PAYMENTS_API`, `REDIS_URL` (memory stores when unset), `FACILITATOR_PORT` (default 4020), `FACILITATOR_RATE_IP` and `FACILITATOR_RATE_CHANNEL` (`"<limit>/<seconds>"` or `"off"`, defaults `300/60` and `120/60`), `FACILITATOR_TRUST_PROXY` (`true` reads the first `X-Forwarded-For` entry as the caller's address; only behind a proxy you run), `FACILITATOR_LOG_LEVEL` (pino level, default `info`), `ATTESTATION_REPORT_PATH` (default `docs/attestation-facilitator.json`, written on every start; `docs/attestation-devnet.json` is the spike's report and keeps the raw quote). Devnet only: a mainnet RPC hostname or `MAINNET_ENABLED=true` refuses to start.
 
 Starting builds the MagicBlock binding, which verifies TEE attestation first. If attestation fails the process still serves, so a vendor learns why instead of a refused connection: `/supported` has `kinds: []` and `extra.error: "shielded_attestation_failed"`, and `/verify` and `/settle` answer 503 with that code. Nothing is settled without an attested binding, and nothing is ever simulated.
 
@@ -23,16 +23,28 @@ Starting builds the MagicBlock binding, which verifies TEE attestation first. If
 - **`/settle` of a deposit** confirms the buyer's private transfer through the binding (`createDepositHandler`, `src/deposit.ts`). The buyer has already made it: a private ephemeral transfer from its own private balance to the escrow with `clientRefId = clientRefOf(channelId)`, built and submitted by `@wakeless/client` `deposit()`. The handler re-derives the channel id and reference from `channelConfig`, checks the record as stored (same buyer, vendor and mint; open; the voucher acceptable once the deposit counts), reserves the deposit signature as a `deposit` operation on the channel so it is credited once, then calls `binding.readDeposit(depositSignature, {clientRef, buyer, amount, transaction})`, which decodes `deposit.transaction` to check that this buyer paid the escrow exactly this amount with no Memo, that the signature landed inside the rollup with `err: null`, and that the escrow's private balance grew. On a match it records the channel with `deposit = amount` (a top-up adds to the existing deposit) and accepts the voucher inside the store's atomic update; the response is `{success: true, transaction: depositSignature, network, payer, amount, extra: {commitmentId, chargedAmount, channelState}}`. The binding answering `null` is `invalid_transaction_state` (not retryable; the operation goes back to `failed` and a later payload for the same signature is tried again); a signature already credited is `duplicate_settlement`; a confirmation of the same signature in flight is `settlement_pending` with the signature in `transaction`; a record under another buyer, vendor or mint is `invalid_batch_settlement_svm_channel_state`. A server without a handler answers 500 `unexpected_settle_error` and settles nothing. Nothing is ever simulated: the unit tests run the handler over a binding fake that answers `readDeposit` from a list of transfers the test "made"; the privacy claim is `test/deposit.devnet.test.ts`.
 - **Idempotent `/settle`.** Results are stored by payload hash (sha256 of the canonical JSON of `{paymentPayload, paymentRequirements}`, key order independent). A repeated identical payload gets the stored result with `extra.replayed: true` and moves nothing; two identical requests in flight settle once. The same voucher sent in a different envelope is not a replay and fails on the watermark as `invalid_batch_settlement_svm_cumulative_amount_mismatch`.
 
-The verified set and the stored results are in memory and per process: with several facilitator processes, a vendor must reach the same one for verify and settle until a hardening task shares them.
+`GET /health` answers 200 with `{status: "ok", binding, scheme, network, uptimeSeconds}` whenever the process is up, `binding` being `ready` or `attestation_failed` (then `network` is `null`), so a vendor or a probe can tell "down" from "refusing". It names no channel, address or amount and is not cached.
+
+The verified set, the stored results and the rate-limit counters are in memory and per process: with several facilitator processes, a vendor must reach the same one for verify and settle until a hardening task shares them.
+
+## Rate limits
+
+Two fixed-window limits, both configurable through the environment or `FacilitatorOptions.rateLimits`, either switchable off:
+
+- **Per caller address**, every request, checked before the body is read. The address is the connection's remote address (`@hono/node-server`), or the first `X-Forwarded-For` entry when `trustProxy` is set; a request with no address (an in-process call) is not counted. Default 300 per 60 s.
+- **Per channel**, `/verify` and `/settle`, keyed by the channel id derived from the payload's `channelConfig` and the escrow, checked once the payload parses and before any check or store read. A replayed `/settle` answers from the stored result first and is not counted. Default 120 per 60 s.
+
+Over either limit the answer is `429` with `{error, code: "shielded_rate_limited", retryable: true}` and a `Retry-After` header in seconds; nothing is parsed, checked or moved. The window starts at the first request seen for a key and the counter resets when it ends.
 
 ## Errors
 
-Every refused request carries `{error, code, retryable}`: `code` is a scheme error code (`docs/SCHEME.md` §1.5), `error` a short message that never echoes a signature, a token, a key or a channel amount, and `retryable` is true only for `unexpected_verify_error`, `unexpected_settle_error` and `settlement_pending`.
+Every refused request carries `{error, code, retryable}`: `code` is a scheme error code (`docs/SCHEME.md` §1.5), `error` a short message that never echoes a signature, a token, a key or a channel amount, and `retryable` is true only for `unexpected_verify_error`, `unexpected_settle_error`, `settlement_pending` and `shielded_rate_limited`.
 
 | What | Status | Body |
 | --- | --- | --- |
 | A verdict on the payment (bad signature, unknown channel, stale cumulative, closing channel, wrong payload type, deposit object malformed, settle without verify, deposit not confirmed by the binding, deposit signature reused, binding refusal) | 200 | The spec's own shape, `{isValid: false, invalidReason, invalidMessage, payer}` or `{success: false, errorReason, errorMessage, transaction: "", network, payer}`, plus `error`, `code` and `retryable` beside it. `settlement_pending` alone carries the deposit signature in `transaction` |
 | A malformed envelope or requirements (not JSON, `x402Version` not 2, another scheme or network, `accepted` differs from `paymentRequirements`, another escrow, `withdrawDelay` out of range, server mode) | 400 | `{error, code, retryable}` |
+| Over the per-address or per-channel rate limit | 429 | `{error, code: "shielded_rate_limited", retryable: true}`, with `Retry-After` in seconds |
 | No attested binding | 503 | `{error, code: "shielded_attestation_failed", retryable: false}` |
 | Unknown route | 404 | `{error, code, retryable}` |
 | A facilitator fault | 500 | `{error: "internal error", code: "unexpected_verify_error" \| "unexpected_settle_error", retryable: true}` |
@@ -61,11 +73,13 @@ await channels.update(channelId, (current) => {
 
 ## Logs
 
-One line per request: method, path, status, error code and the payload hash, sometimes a channel id. Never a payload field, a signature, a token or an amount; the HTTP tests scan the captured lines for 87- and 88-character base58 strings.
+Structured, one JSON object per line on stdout (pino 10, `createFacilitatorLogger`). A `request` event per answered request carries `method`, `path`, `status`, the scheme `code` or the `outcome` (`valid`, `settled`, `replayed`), the payload `hash` and sometimes a `channelId`; the deposit handler adds `deposit_confirmed`, `deposit_unconfirmed` and `deposit_credited_not_recorded` with the channel id and the operation id (the signature hashed); a 500 names only the error's class. `msg` is the same words as one text line (`POST /settle 200 settled <hash> <channelId>`), which `FacilitatorOptions.log` also receives for harnesses and scripts that read lines. Never a payload field, a signature, a token, a key or an amount for a channel.
+
+Two guards sit under that rule, neither a licence: pino `redact` censors the field names a signature, token or amount would travel under (`REDACTED_PATHS`) if an object were ever logged whole, and the destination scrubs every line of 87- and 88-character base58 strings and bearer tokens, reporting what it scrubbed in a `log_redacted` event so a test can assert the count is zero. `test/logs.test.ts` captures the stream over a full cycle (deposit confirmed through the handler, vouchers verified and settled, a replay, every refusal class, a 429, a 500) and asserts no line carries a signature, a bearer token, a channel amount or a payload field name, and that `log_redacted` never fired.
 
 ## Tests
 
-`test/http.test.ts` runs the app in process over a binding fake that answers only `network()` and `escrowAddress()` (nothing is transferred in a unit test; the privacy primitive is never simulated). `test/deposit.test.ts` runs `confirmDeposit` over a fake whose `readDeposit` matches only the signature, reference, buyer, amount and transaction of transfers the test recorded, and never twice. `test/request.fuzz.test.ts` fuzzes the envelope and payload parsers with fast-check. `test/deposit.devnet.test.ts` (`pnpm test:devnet`, needs `.env` and a buyer private balance of at least 0.01 USDC) makes a real private deposit through `@wakeless/client` and the real binding and settles it in process.
+`test/hardening.test.ts` holds task 6.3: the idempotent `/settle`, the unknown channel, the verify-to-settle window on a fake clock, both rate limits, `GET /health`, and the rate rule parser. `test/http.test.ts` runs the app in process over a binding fake that answers only `network()` and `escrowAddress()` (nothing is transferred in a unit test; the privacy primitive is never simulated). `test/deposit.test.ts` runs `confirmDeposit` over a fake whose `readDeposit` matches only the signature, reference, buyer, amount and transaction of transfers the test recorded, and never twice. `test/request.fuzz.test.ts` fuzzes the envelope and payload parsers with fast-check. `test/deposit.devnet.test.ts` (`pnpm test:devnet`, needs `.env` and a buyer private balance of at least 0.01 USDC) makes a real private deposit through `@wakeless/client` and the real binding and settles it in process.
 
 The Redis half of `test/stores.contract.test.ts` skips with a printed reason unless `REDIS_URL` is set. It writes only under a per-run key prefix, deletes those keys afterwards, and never flushes.
 
