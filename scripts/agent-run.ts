@@ -246,7 +246,7 @@ A fresh Claude Code session (${transcript.model}, ${transcript.how}, no prior co
 | Vouchers and deposits the facilitator settled | ${settled} | its log, \`POST /settle 200 settled\` |
 | Private balance moved into escrow | ${usdc(balanceMoved)} | the buyer's private balance, before and after; equals the deposits' sum |
 
-The watcher's four checks did not run: \`packages/watcher\` has no code yet (Day 9). The ledger measure above covers these addresses only.
+The watcher's four checks did not run: \`packages/watcher\` has no code yet (Day 9). The ledger measure above covers these addresses only.${deposits.every((entry) => entry.depositSignature !== undefined) ? " The owner's channel file keeps each deposit's signature, so the checks can run on this run once the watcher exists; the published trajectory does not carry them." : " This run's deposit signatures were not kept (recorded before the client stored them), so the checks cannot run on it later."}
 
 ## Trust boundary
 
@@ -263,7 +263,12 @@ ${transcript.markdown}
   if (/[1-9A-HJ-NP-Za-km-z]{87,88}/.test(body) || /bearer|api[-_]?key=/i.test(body)) throw new Error("the transcript carries a signature, a token or a key; not writing it");
 
   const dir = join(ROOT, "docs", "runs");
-  writeFileSync(join(dir, `${run}-trajectory.json`), JSON.stringify(trajectory, null, 2) + "\n");
+  // The owner's file keeps each deposit's signature for the watcher; the published copy does not carry signatures.
+  const published = trajectory.map(({ depositSignature: _kept, ...entry }) => {
+    void _kept;
+    return entry;
+  });
+  writeFileSync(join(dir, `${run}-trajectory.json`), JSON.stringify(published, null, 2) + "\n");
   writeFileSync(join(dir, `${run}.md`), body);
   console.log(`[agent-run] ${trajectory.length} paid requests, ${deposits.length} deposits, ${onLedger.size} on the base layer, ${usdc(balanceMoved)} into escrow`);
 }
