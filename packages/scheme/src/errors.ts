@@ -51,6 +51,8 @@ export const SCHEME_ERROR_CODES = {
   shieldedVerifyRequired: "shielded_verify_required",
   /** HTTP 429: the caller's address or the channel is over the facilitator's rate limit. Retryable after `Retry-After`. */
   shieldedRateLimited: "shielded_rate_limited",
+  /** HTTP 401 or 403: a token-protected facilitator route (`/receipts`, `/admin/*`) refused the caller. Not retryable unchanged. */
+  shieldedUnauthorized: "shielded_unauthorized",
 
   /** Seller side: the facilitator did not answer, so the request fails closed with a 402. */
   facilitatorUnavailable: "shielded_facilitator_unavailable",

@@ -184,15 +184,26 @@ export interface VoucherState {
 }
 
 /**
- * The facilitator-signed off-chain receipt (briefing §3). With `clientRefId`
- * it is the only other place receipt data goes; never a Memo.
+ * The facilitator-signed off-chain receipt (briefing §3; plan task 7.2). With
+ * `clientRefId` it is the only other place receipt data goes; never a Memo.
+ * One per redeemed period of a channel, handed to the vendor by
+ * `GET /receipts/:channelId`. `cumulative` is the channel's settled watermark
+ * after the period, gross of the privacy fee; `amount` is what the vendor's
+ * private balance received for the period, the owed amount net of the fee.
  */
 export interface SettlementReceipt {
+  /** Base58, decodes to 32 bytes (`deriveChannelId`). */
   readonly channelId: string;
-  readonly cumulative: string;
+  /** 1-based; one private transfer per channel per period. */
   readonly period: number;
-  /** Base58 Ed25519 signature by the facilitator's receipt signer (`/supported` `signers`). */
+  /** Decimal u64 string. */
+  readonly cumulative: string;
+  /** Decimal u64 string. */
+  readonly amount: string;
+  /** Base58 signature of the private transfer escrow → vendor on the layer it executed on. */
   readonly signature: string;
+  /** Base58 Ed25519 signature by the facilitator's receipt signer (`/supported` `signers`) over the 122-byte receipt message. */
+  readonly facilitatorSignature: string;
 }
 
 export interface SettlementExtra {

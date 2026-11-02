@@ -36,6 +36,17 @@ export {
   type VoucherPayload,
   type VoucherState,
 } from "./types.js";
+export {
+  RECEIPT_MAGIC,
+  RECEIPT_MESSAGE_LENGTH,
+  encodeReceiptMessage,
+  parseSettlementReceipt,
+  parseUnsignedReceipt,
+  signReceipt,
+  tryEncodeReceiptMessage,
+  verifyReceipt,
+  type UnsignedReceipt,
+} from "./receipt.js";
 export { U64_MAX, parseU64 } from "./u64.js";
 export {
   VOUCHER_MAGIC,
