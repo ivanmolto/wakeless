@@ -5,16 +5,20 @@ import {
   SCHEME_ID,
   X402_VERSION,
   deriveChannelId,
+  isChannelId,
   isSchemeErrorCode,
   type ChannelState,
   type SchemeErrorCode,
+  type SettlementReceipt,
   type SettlementResponse,
   type ShieldedPayload,
   type SupportedResponse,
   type VerifyResponse,
 } from "@wakeless/scheme";
+import type { Alert, RedeemRunSummary, Redeemer } from "../redeem.js";
 import { KeyedMutex } from "../stores/keyed-mutex.js";
 import type { ChannelRecord, Stores } from "../stores/types.js";
+import { bearerOf, isLoopback, tokenMatches, vendorOfToken } from "./auth.js";
 import type { BindingState } from "./binding-state.js";
 import type { DepositHandler } from "./deposit-handler.js";
 import { HttpError, Rejection, errorBody, isRetryable, type ErrorBody } from "./errors.js";
@@ -59,7 +63,27 @@ export interface FacilitatorOptions {
    */
   readonly clientAddress?: (c: Context) => string | undefined;
   readonly trustProxy?: boolean;
+  /** The redemption worker (`createRedeemer`); without it `/receipts` and `/admin/*` answer 500. */
+  readonly redeemer?: Redeemer;
+  /** Bearer token for `/admin/*`; without it the admin routes are disabled (403). */
+  readonly adminToken?: string;
+  /** Vendor address → bearer token for `GET /receipts/:channelId`; a vendor reads only its own channels. */
+  readonly receiptTokens?: ReadonlyMap<string, string>;
 }
+
+/** `GET /receipts/:channelId`. */
+export interface ReceiptsResponse {
+  readonly channelId: string;
+  /** The receipt signer's public key, base58, the same as `/supported` `signers`. */
+  readonly signer: string;
+  readonly receipts: readonly SettlementReceipt[];
+}
+
+export interface AlertsResponse {
+  readonly alerts: readonly Alert[];
+}
+
+export type RedeemResponse = RedeemRunSummary;
 
 type VerifyVerdict = VerifyResponse & Partial<ErrorBody>;
 type SettleVerdict = SettlementResponse & Partial<ErrorBody>;
@@ -106,8 +130,8 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
 
   interface Answered {
     readonly code?: SchemeErrorCode;
-    /** `valid`, `settled`, `replayed`; a verdict's code stands in its place. */
-    readonly outcome?: "valid" | "settled" | "replayed";
+    /** `valid`, `settled`, `replayed`, `receipts`, `redeemed`, `alerts`; a verdict's code stands in its place. */
+    readonly outcome?: "valid" | "settled" | "replayed" | "receipts" | "redeemed" | "alerts";
     readonly hash?: string;
     readonly channelId?: string;
     readonly binding?: BindingState["status"];
@@ -360,6 +384,57 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
       answered(c, 200, { ...(response.success ? { outcome: "settled" } : { code: isSchemeErrorCode(response.errorReason) ? response.errorReason : SCHEME_ERROR_CODES.unexpectedSettleError }), hash, channelId: verdict.channelId });
       return c.json(response, 200);
     });
+  });
+
+  /** The worker, or a 500: the process has none (a server without a receipt signer). */
+  function redeemer(): Redeemer {
+    if (options.binding.status !== "ready") {
+      throw new HttpError(503, SCHEME_ERROR_CODES.shieldedAttestationFailed, "the binding failed TEE attestation; this facilitator redeems nothing");
+    }
+    if (options.redeemer === undefined) throw new HttpError(500, SCHEME_ERROR_CODES.unexpectedSettleError, "this facilitator has no redemption worker");
+    return options.redeemer;
+  }
+
+  /**
+   * `GET /receipts/:channelId`, vendor-token protected: the bearer token names a vendor,
+   * and the channel must be that vendor's. A wrong token is 401; a channel that is not
+   * this vendor's, or does not exist, is 404 either way, so a token learns nothing about
+   * other vendors' channels.
+   */
+  app.get("/receipts/:channelId", async (c) => {
+    const worker = redeemer();
+    const vendor = vendorOfToken(options.receiptTokens ?? new Map(), bearerOf(c.req.header("authorization")));
+    if (vendor === undefined) throw new HttpError(401, SCHEME_ERROR_CODES.shieldedUnauthorized, "a vendor bearer token is required", { "www-authenticate": "Bearer" });
+    const channelId = c.req.param("channelId");
+    const channel = isChannelId(channelId) ? await stores.channels.get(channelId) : undefined;
+    if (channel === undefined || channel.vendor !== vendor) {
+      throw new HttpError(404, SCHEME_ERROR_CODES.invalidPayload, "no such channel for this vendor");
+    }
+    const body: ReceiptsResponse = { channelId, signer: worker.signer, receipts: await worker.receipts(channelId) };
+    answered(c, 200, { outcome: "receipts", channelId });
+    return c.json(body, 200, { "cache-control": "no-store" });
+  });
+
+  /** `/admin/*`: loopback only, then the admin bearer token. Nothing is parsed before both pass. */
+  app.use("/admin/*", async (c, next) => {
+    if (!isLoopback(addressOf(c))) throw new HttpError(403, SCHEME_ERROR_CODES.shieldedUnauthorized, "admin routes answer loopback only");
+    if (options.adminToken === undefined) throw new HttpError(403, SCHEME_ERROR_CODES.shieldedUnauthorized, "admin routes are disabled: no admin token is configured");
+    if (!tokenMatches(bearerOf(c.req.header("authorization")), options.adminToken)) {
+      throw new HttpError(401, SCHEME_ERROR_CODES.shieldedUnauthorized, "the admin bearer token is required", { "www-authenticate": "Bearer" });
+    }
+    await next();
+  });
+
+  app.post("/admin/redeem", async (c) => {
+    const body: RedeemResponse = await redeemer().runOnce();
+    answered(c, 200, { outcome: "redeemed" });
+    return c.json(body, 200, { "cache-control": "no-store" });
+  });
+
+  app.get("/admin/alerts", (c) => {
+    const body: AlertsResponse = { alerts: redeemer().alerts() };
+    answered(c, 200, { outcome: "alerts" });
+    return c.json(body, 200, { "cache-control": "no-store" });
   });
 
   app.notFound((c) => {

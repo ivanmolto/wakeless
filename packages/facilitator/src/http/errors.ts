@@ -32,10 +32,10 @@ export function errorBody(code: SchemeErrorCode, error: string): ErrorBody {
   return { error, code, retryable: isRetryable(code) };
 }
 
-/** A refusal with its HTTP status: 400 for a malformed request, 429 over a rate limit, 500 for a facilitator fault. */
+/** A refusal with its HTTP status: 400 for a malformed request, 401/403 on a protected route, 429 over a rate limit, 500 for a facilitator fault. */
 export class HttpError extends Error {
   constructor(
-    readonly status: 400 | 404 | 429 | 500 | 503,
+    readonly status: 400 | 401 | 403 | 404 | 429 | 500 | 503,
     readonly code: SchemeErrorCode,
     message: string,
     /** Response headers beside the body: `Retry-After` on a 429. */

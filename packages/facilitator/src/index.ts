@@ -3,9 +3,31 @@ export {
   DEFAULT_PRIVACY_FEE_BPS,
   DEFAULT_SETTLED_TTL_SECS,
   createFacilitatorApp,
+  type AlertsResponse,
   type FacilitatorOptions,
   type HealthResponse,
+  type ReceiptsResponse,
+  type RedeemResponse,
 } from "./http/app.js";
+export { bearerOf, isLoopback, parseReceiptTokens, tokenMatches, vendorOfToken } from "./http/auth.js";
+export {
+  DEFAULT_BACKOFF,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_REDEEM_INTERVAL_SECS,
+  PRODUCTION_REDEEM_INTERVAL_SECS,
+  backoffSeconds,
+  createRedeemer,
+  feeOf,
+  periodOf,
+  settleOpId,
+  settleSignatureOf,
+  type Alert,
+  type AlertKind,
+  type ReconcileSummary,
+  type RedeemDeps,
+  type RedeemRunSummary,
+  type Redeemer,
+} from "./redeem.js";
 export { REDACTED_PATHS, createFacilitatorLogger, lineDestination, scrubbingDestination, type FacilitatorLogger, type LoggerOptionsIn } from "./http/log.js";
 export { DEFAULT_RATE_LIMITS, RateLimiter, parseRateRule, type RateLimitRule, type RateLimits, type RateVerdict } from "./http/rate-limit.js";
 export { applyDeposit, confirmDeposit, createDepositHandler, depositOpId, type ConfirmDepositInput, type DepositDeps } from "./deposit.js";
