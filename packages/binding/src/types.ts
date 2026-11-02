@@ -88,6 +88,24 @@ export interface SettlementBinding {
 }
 
 /**
+ * The vendor's read-only view of a rail (task 7.3): logged in with the vendor's own key,
+ * it reads the vendor's private balance and asks whether a private transfer to it landed.
+ * It signs nothing but its logins and moves nothing.
+ */
+export interface PayeeBinding {
+  readonly id: BindingId;
+  network(): Caip2;
+  address(): Address;
+  /**
+   * The vendor's private balance in base units, and every reference id the rail's read
+   * endpoint exposes beside it (`clientRefId`, memo or reference fields); none is expected.
+   */
+  privateBalance(): Promise<{ balance: bigint; referenceIds: readonly string[] }>;
+  /** Whether a transfer signature is readable on the rail with the vendor's own login, and succeeded. */
+  transferStatus(sig: Signature): Promise<"landed" | "failed" | "not_found">;
+}
+
+/**
  * The buyer's side of a rail: the one private transfer a buyer makes, from its own
  * private balance to the escrow, carrying the channel's `clientRefId`. The client
  * (`@wakeless/client`) reaches the primitive only through this interface. A rail that

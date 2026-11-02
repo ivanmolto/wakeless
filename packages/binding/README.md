@@ -40,6 +40,20 @@ interface BuyerBinding {
 }
 ```
 
+## The vendor's side
+
+`PayeeBinding` is a vendor's read-only view of a rail, logged in with the vendor's own key: its private balance with every reference id the rail's read endpoint exposes beside it (none is expected), and whether a transfer signature is readable on the rail and succeeded. It moves nothing. `@wakeless/binding-magicblock` implements it as `MagicBlockPayee`; the vendor's receipt reader (`pnpm vendor:receipts`) uses it.
+
+```ts
+interface PayeeBinding {
+  id: "magicblock" | "rings" | "privacycash";
+  network(): Caip2;
+  address(): Address;
+  privateBalance(): Promise<{ balance: bigint; referenceIds: readonly string[] }>;
+  transferStatus(sig: Signature): Promise<"landed" | "failed" | "not_found">;
+}
+```
+
 ## Observer view
 
 `observe(sig)` returns what the public ledger shows for a signature, which is what the watcher checks: `programIds`, `signers`, `plaintextAmounts`, `plaintextRecipients`, `memoText`, `feeTransfers`. A signature that executed inside the rollup is not on the base layer at all: `onBaseLayer` is false and every list is empty.

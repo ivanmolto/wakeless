@@ -3,7 +3,7 @@
 import { signature as asSignature } from "@solana/kit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { MalformedResponseError, parseBuiltTransaction, parseChallenge, parseLoginToken, parsePrivateBalance, parseTeeTransaction } from "../src/api.js";
+import { MalformedResponseError, parseBuiltTransaction, parseChallenge, parseLoginToken, parsePrivateBalance, parseTeeTransaction, referenceIdsIn } from "../src/api.js";
 import { decodeSignedTransaction, UndecodableTransactionError } from "../src/deposit.js";
 import { parseObserverView } from "../src/observe.js";
 import { DEFAULT_DELAY_WINDOW_MS, pickDelay, splitFor, USDC_BASE_UNITS } from "../src/policy.js";
@@ -53,6 +53,21 @@ describe("Payments API parsers", () => {
     fc.assert(fc.property(record, onlyMalformed(parsePrivateBalance)), { numRuns: 300 });
     const built = fc.record({ kind: fc.jsonValue(), version: fc.jsonValue(), transactionBase64: fc.jsonValue(), sendTo: fc.jsonValue(), sendRpcEndpoint: fc.jsonValue(), recentBlockhash: fc.jsonValue(), lastValidBlockHeight: fc.jsonValue(), requiredSigners: fc.jsonValue() }, { requiredKeys: [] });
     fc.assert(fc.property(built, onlyMalformed(parseBuiltTransaction)), { numRuns: 300 });
+  });
+});
+
+describe("reference ids in a response", () => {
+  it("finds reference-like fields at any depth, none in the spike's private-balance answer, and never throws (fuzz)", () => {
+    const spike = { address: "a", mint: "m", ata: "t", location: "ephemeral", balance: "760000", delegation: { status: "delegated", validator: "v", endpoint: "e" }, onboarding: "already delegated" };
+    expect(referenceIdsIn(spike)).toEqual([]);
+    expect(referenceIdsIn({ ...spike, clientRefId: "2001", history: [{ memo: "x" }, { reference: 7 }], nested: { referenceIds: ["1", "2"] } })).toEqual(["2001", "x", "7", "1", "2"]);
+    fc.assert(
+      fc.property(fc.jsonValue(), (json) => {
+        const out = referenceIdsIn(json);
+        expect(out.every((v) => typeof v === "string")).toBe(true);
+      }),
+      { numRuns: 500 },
+    );
   });
 });
 

@@ -16,6 +16,7 @@ export {
   type Caip2,
   type FeeTransfer,
   type ObserverView,
+  type PayeeBinding,
   type PlaintextAmount,
   type Receipt,
   type SettlementBinding,

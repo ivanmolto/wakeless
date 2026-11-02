@@ -182,6 +182,29 @@ export function parseTeeTransaction(json: unknown): TeeTransaction | null {
   return { err, slot, blockTime };
 }
 
+const REFERENCE_KEY = /^(clientRefId|clientRef|refId|reference|referenceId|referenceIds|memo|memos)$/i;
+
+/**
+ * Every value a response carries under a reference-like key (`clientRefId`, `reference`,
+ * `memo`), at any depth, as strings. The spike found none in a private-balance answer;
+ * this is how a reader shows it is still none. Never throws.
+ */
+export function referenceIdsIn(json: unknown, depth = 0): string[] {
+  if (depth > 8) return [];
+  if (Array.isArray(json)) return json.flatMap((item) => referenceIdsIn(item, depth + 1));
+  if (!isRecord(json)) return [];
+  const out: string[] = [];
+  for (const [key, value] of Object.entries(json)) {
+    if (REFERENCE_KEY.test(key)) {
+      const values = Array.isArray(value) ? value : [value];
+      for (const v of values) if ((typeof v === "string" && v !== "") || typeof v === "number") out.push(String(v));
+    } else {
+      out.push(...referenceIdsIn(value, depth + 1));
+    }
+  }
+  return out;
+}
+
 export function parseChallenge(json: unknown): string {
   const what = "Payments API challenge response";
   if (!isRecord(json)) throw new MalformedResponseError(what, "not an object");

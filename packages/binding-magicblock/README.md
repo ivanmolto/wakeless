@@ -55,6 +55,21 @@ const { sig, transaction } = await rail.deposit(escrowAddress, 1_000_000n, { id:
 | `privateBalance()` | `GET /v1/spl/private-balance` | The buyer's, base units |
 | `teeValidator` | from attestation | The attested identity; the client compares it with the vendor's `extra.teeValidator` |
 
+## The vendor's view
+
+`MagicBlockPayee` implements `PayeeBinding` for a vendor: the same devnet-only checks, TEE attestation and two logins, with the vendor keypair, and two reads. It builds and sends nothing.
+
+```ts
+const payee = await MagicBlockPayee.create({ network: DEVNET_CAIP2, baseRpcUrl, teeRpcUrl, paymentsApiUrl, mint, payee: vendorKeyPair, attestationReportPath });
+const { balance, referenceIds } = await payee.privateBalance();
+const status = await payee.transferStatus(receipt.signature);
+```
+
+| Method | API and rollup calls | Notes |
+| --- | --- | --- |
+| `privateBalance()` | `GET /v1/spl/private-balance` | The vendor's, base units, and every value under a `clientRefId`, `reference` or `memo` key in the answer. The spike found none (31 Oct 2026): the rail exposes no reference id to the recipient |
+| `transferStatus(sig)` | TEE `getTransaction` with the vendor's TEE token | `landed`, `failed` or `not_found`. The TEE answers an ephemeral transaction with existence and success only (no accounts, amounts or `clientRefId`, to any reader), so that is all a vendor can learn from the rail; amount and period come from the facilitator's signed receipt |
+
 ## Failures
 
 | What happened | Thrown | Retry |
