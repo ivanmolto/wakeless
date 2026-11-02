@@ -12,6 +12,8 @@ import { MagicBlockBinding } from "@wakeless/binding-magicblock";
 import { createDepositHandler } from "./deposit.js";
 import { createFacilitatorApp } from "./http/app.js";
 import type { BindingState } from "./http/binding-state.js";
+import { createFacilitatorLogger, type FacilitatorLogger } from "./http/log.js";
+import { DEFAULT_RATE_LIMITS, parseRateRule } from "./http/rate-limit.js";
 import { createMemoryStores } from "./stores/memory.js";
 import { createRedisStores } from "./stores/redis.js";
 
@@ -49,7 +51,7 @@ async function loadEscrow(path: string) {
   return createKeyPairFromBytes(Uint8Array.from(bytes as number[]));
 }
 
-async function bindingState(): Promise<BindingState> {
+async function bindingState(logger: FacilitatorLogger): Promise<BindingState> {
   const baseRpcUrl = required("SOLANA_RPC_URL");
   if (/mainnet/i.test(new URL(baseRpcUrl).hostname)) throw new Error("Refusing a mainnet RPC URL: the facilitator runs on devnet only");
   const escrow = await loadEscrow(process.env.ESCROW_KEYPAIR ?? "keys/escrow.json");
@@ -69,7 +71,7 @@ async function bindingState(): Promise<BindingState> {
     return { status: "ready", binding, teeValidator };
   } catch (error) {
     if (isBindingError(error, BINDING_ERROR_CODES.attestationFailed)) {
-      console.error(`[facilitator] ${error.message}; serving an empty /supported`);
+      logger.error({ event: "attestation_failed", code: BINDING_ERROR_CODES.attestationFailed }, `${error.message}; serving an empty /supported`);
       return { status: "attestation_failed", error: error.message };
     }
     throw error;
@@ -79,14 +81,33 @@ async function bindingState(): Promise<BindingState> {
 async function main(): Promise<void> {
   loadDotEnv();
   if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_ENABLED is not honoured by the facilitator: it runs on devnet only");
-  const binding = await bindingState();
+  // Structured JSON lines on stdout (pino). `FACILITATOR_LOG_LEVEL` defaults to info.
+  const logger = createFacilitatorLogger({ level: process.env.FACILITATOR_LOG_LEVEL ?? "info" });
+  // `"<limit>/<seconds>"` or `"off"`; parsed before the binding so a typo fails fast.
+  const rateLimits = {
+    perIp: parseRateRule(process.env.FACILITATOR_RATE_IP, DEFAULT_RATE_LIMITS.perIp),
+    perChannel: parseRateRule(process.env.FACILITATOR_RATE_CHANNEL, DEFAULT_RATE_LIMITS.perChannel),
+  };
+  const trustProxy = process.env.FACILITATOR_TRUST_PROXY === "true";
+  const binding = await bindingState(logger);
   const stores = process.env.REDIS_URL ? createRedisStores(process.env.REDIS_URL) : createMemoryStores();
-  const log = (line: string) => console.log(`[facilitator] ${line}`);
-  const deposits = binding.status === "ready" ? createDepositHandler({ binding: binding.binding, stores, log }) : undefined;
-  const app = createFacilitatorApp({ binding, stores, deposits, log });
+  const deposits = binding.status === "ready" ? createDepositHandler({ binding: binding.binding, stores, logger }) : undefined;
+  const app = createFacilitatorApp({ binding, stores, deposits, logger, rateLimits, trustProxy });
   const port = Number(process.env.FACILITATOR_PORT ?? 4020);
   const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
-    console.log(`[facilitator] listening on http://127.0.0.1:${info.port} (${binding.status}, ${process.env.REDIS_URL ? "redis" : "memory"} stores, ${DEVNET_CAIP2})`);
+    logger.info(
+      {
+        event: "listening",
+        url: `http://127.0.0.1:${info.port}`,
+        binding: binding.status,
+        stores: process.env.REDIS_URL ? "redis" : "memory",
+        network: DEVNET_CAIP2,
+        rateLimitPerIp: rateLimits.perIp === false ? "off" : `${rateLimits.perIp.limit}/${rateLimits.perIp.windowSeconds}`,
+        rateLimitPerChannel: rateLimits.perChannel === false ? "off" : `${rateLimits.perChannel.limit}/${rateLimits.perChannel.windowSeconds}`,
+        trustProxy,
+      },
+      `listening on http://127.0.0.1:${info.port}`,
+    );
   });
   const stop = () => {
     server.close();

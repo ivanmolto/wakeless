@@ -21,6 +21,7 @@ const RETRYABLE: ReadonlySet<string> = new Set([
   SCHEME_ERROR_CODES.unexpectedVerifyError,
   SCHEME_ERROR_CODES.unexpectedSettleError,
   SCHEME_ERROR_CODES.settlementPending,
+  SCHEME_ERROR_CODES.shieldedRateLimited,
 ]);
 
 export function isRetryable(code: SchemeErrorCode): boolean {
@@ -31,12 +32,14 @@ export function errorBody(code: SchemeErrorCode, error: string): ErrorBody {
   return { error, code, retryable: isRetryable(code) };
 }
 
-/** A refusal with its HTTP status: 400 for a malformed request, 500 for a facilitator fault. */
+/** A refusal with its HTTP status: 400 for a malformed request, 429 over a rate limit, 500 for a facilitator fault. */
 export class HttpError extends Error {
   constructor(
-    readonly status: 400 | 404 | 500 | 503,
+    readonly status: 400 | 404 | 429 | 500 | 503,
     readonly code: SchemeErrorCode,
     message: string,
+    /** Response headers beside the body: `Retry-After` on a 429. */
+    readonly headers: Readonly<Record<string, string>> = {},
   ) {
     super(message);
     this.name = "HttpError";

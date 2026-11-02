@@ -49,6 +49,8 @@ export const SCHEME_ERROR_CODES = {
   shieldedAttestationFailed: "shielded_attestation_failed",
   /** `/settle` of a voucher with no valid `/verify` of the same payload within `maxTimeoutSeconds`. */
   shieldedVerifyRequired: "shielded_verify_required",
+  /** HTTP 429: the caller's address or the channel is over the facilitator's rate limit. Retryable after `Retry-After`. */
+  shieldedRateLimited: "shielded_rate_limited",
 
   /** Seller side: the facilitator did not answer, so the request fails closed with a 402. */
   facilitatorUnavailable: "shielded_facilitator_unavailable",

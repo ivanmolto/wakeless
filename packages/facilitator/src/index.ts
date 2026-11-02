@@ -4,7 +4,10 @@ export {
   DEFAULT_SETTLED_TTL_SECS,
   createFacilitatorApp,
   type FacilitatorOptions,
+  type HealthResponse,
 } from "./http/app.js";
+export { REDACTED_PATHS, createFacilitatorLogger, lineDestination, scrubbingDestination, type FacilitatorLogger, type LoggerOptionsIn } from "./http/log.js";
+export { DEFAULT_RATE_LIMITS, RateLimiter, parseRateRule, type RateLimitRule, type RateLimits, type RateVerdict } from "./http/rate-limit.js";
 export { applyDeposit, confirmDeposit, createDepositHandler, depositOpId, type ConfirmDepositInput, type DepositDeps } from "./deposit.js";
 export type { BindingState } from "./http/binding-state.js";
 export type { DepositHandler } from "./http/deposit-handler.js";

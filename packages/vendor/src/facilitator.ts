@@ -156,7 +156,8 @@ export class FacilitatorClient {
       if (!isObject(parsed)) return UNAVAILABLE;
       if (response.status === 200) return parsed;
       if (response.status === 503 && parsed.code === SCHEME_ERROR_CODES.shieldedAttestationFailed) return ATTESTATION_FAILED;
-      if (response.status === 400 && typeof parsed.code === "string") {
+      // 400: the request was malformed. 429: over the facilitator's rate limit (`shielded_rate_limited`, retryable).
+      if ((response.status === 400 || response.status === 429) && typeof parsed.code === "string") {
         return new Refusal(parsed.code, typeof parsed.error === "string" ? parsed.error : "the facilitator refused the request", parsed.retryable === true);
       }
       return UNAVAILABLE;

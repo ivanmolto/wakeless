@@ -4,6 +4,7 @@ import { clientRefId, type SettlementBinding } from "@wakeless/binding";
 import { SCHEME_ERROR_CODES, nextWatermark, type DepositPayload, type PaymentRequirements, type SettlementResponse } from "@wakeless/scheme";
 import type { DepositHandler } from "./http/deposit-handler.js";
 import { Rejection } from "./http/errors.js";
+import type { FacilitatorLogger } from "./http/log.js";
 import { checkDeposit } from "./http/validate.js";
 import type { ChannelRecord, Stores } from "./stores/types.js";
 
@@ -26,6 +27,8 @@ export interface DepositDeps {
   readonly now?: () => number;
   /** One line per event: channel id, op id, status. Never a signature or an amount. */
   readonly log?: (line: string) => void;
+  /** The structured log; `deposit_*` events with `channelId` and `opId`. Used beside `log`. */
+  readonly logger?: FacilitatorLogger;
 }
 
 export interface ConfirmDepositInput {
@@ -46,7 +49,10 @@ export async function confirmDeposit(input: ConfirmDepositInput, deps: DepositDe
   const { payload, requirements } = input;
   const { binding, stores } = deps;
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
-  const log = deps.log ?? (() => undefined);
+  const log = (event: "deposit_unconfirmed" | "deposit_credited_not_recorded" | "deposit_confirmed", channelId: string, opId: string): void => {
+    deps.log?.(`${event.replaceAll("_", " ")} ${channelId} ${opId}`);
+    deps.logger?.info({ event, channelId, opId }, event);
+  };
 
   // 1. The channel as stored agrees with the config, is open, and the voucher would be
   //    acceptable once the deposit counts. Nothing has touched the binding yet.
@@ -83,7 +89,7 @@ export async function confirmDeposit(input: ConfirmDepositInput, deps: DepositDe
   }
   if (read === null || read.buyer !== buyer || read.amount !== amount) {
     await stores.operations.transition(channelId, opId, { status: "failed" });
-    log(`deposit unconfirmed ${channelId} ${opId}`);
+    log("deposit_unconfirmed", channelId, opId);
     throw new Rejection(SCHEME_ERROR_CODES.invalidTransactionState, "the deposit transfer is not confirmed: it is not this buyer's transfer of this amount to the escrow, has not landed, or was already credited", buyer);
   }
 
@@ -103,11 +109,11 @@ export async function confirmDeposit(input: ConfirmDepositInput, deps: DepositDe
     // race between the check in step 1 and the write. The operation stays `failed` with
     // the signature, so an operator can see what was credited and not recorded.
     await stores.operations.transition(channelId, opId, { status: "failed", signature: sig });
-    log(`deposit credited but not recorded ${channelId} ${opId}`);
+    log("deposit_credited_not_recorded", channelId, opId);
     throw error;
   }
   await stores.operations.transition(channelId, opId, { status: "confirmed", signature: sig });
-  log(`deposit confirmed ${channelId} ${opId}`);
+  log("deposit_confirmed", channelId, opId);
 
   return {
     success: true,
