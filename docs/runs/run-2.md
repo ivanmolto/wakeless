@@ -17,7 +17,7 @@ A fresh Claude Code session (claude-opus-5-5, `claude -p`, no prior context) wit
 | Vouchers and deposits the facilitator settled | 9 | its log, `POST /settle 200 settled` |
 | Private balance moved into escrow | 0.6 USDC | the buyer's private balance, before and after; equals the deposits' sum |
 
-The watcher's four checks did not run: `packages/watcher` has no code yet (Day 9). The ledger measure above covers these addresses only.
+The watcher's four checks did not run: `packages/watcher` has no code yet (Day 9). The ledger measure above covers these addresses only. This run's deposit signatures were not kept (recorded before the client stored them), so the checks cannot run on it later.
 
 ## Trust boundary
 
