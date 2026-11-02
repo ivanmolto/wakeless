@@ -40,7 +40,7 @@ pnpm vendors                                # 127.0.0.1:4021, 4022, 4023
 pnpm --filter @wakeless/mcp-server start    # the MCP server over stdio
 ```
 
-The buyer's private balance must hold the deposits (`POST /v1/spl/deposit` with `private: true`, see the client README). The client builds the MagicBlock rail on the first 402; that construction is the TEE attestation and writes `docs/attestation-mcp.json` (`ATTESTATION_REPORT_PATH`).
+The buyer's private balance must hold the deposits (`pnpm fund:private --role buyer --usdc 1` makes the `POST /v1/spl/deposit` with `private: true` from the buyer's base token account; one public base-layer vault deposit). The client builds the MagicBlock rail on the first 402; that construction is the TEE attestation and writes `docs/attestation-mcp.json` (`ATTESTATION_REPORT_PATH`).
 
 ### Devnet key handling
 

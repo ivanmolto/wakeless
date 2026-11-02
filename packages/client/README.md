@@ -52,7 +52,7 @@ The deposit and every voucher are private against the public ledger. Three opera
 
 ## Proof on devnet
 
-`pnpm client:20` runs the facilitator (real MagicBlock binding) and the three vendors in process and pays twenty requests across them: three deposits (one per vendor, 100 × each route's price, 0.6 USDC in all), seventeen vouchers, three signatures emitted, none on the base layer. 1 Nov 2026: 20 served, 8 s.
+`pnpm client:20` runs the facilitator (real MagicBlock binding) and the three vendors in process and pays twenty requests across them: three deposits (one per vendor, 100 × each route's price, 0.6 USDC in all), seventeen vouchers, three signatures emitted, none on the base layer. 1 Nov 2026: 20 served, 8 s. The buyer's private balance must hold the 0.6 USDC first: `pnpm fund:private --role buyer --usdc 1` moves devnet USDC from its base token account into its private balance with one public vault deposit.
 
 ## Dependencies
 
