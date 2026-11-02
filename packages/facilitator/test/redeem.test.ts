@@ -402,6 +402,38 @@ describe("admin and receipt routes", () => {
     }
   });
 
+  it("GET /admin/channels lists accepted, settled and settle operations per channel, admin only", async () => {
+    // A confirmed redemption.
+    const h = harness();
+    const other = scenario(h.binding.escrowAddress());
+    await owedChannel(h);
+    await owedChannel(h, 5_005n, other);
+    await h.redeemer.runOnce();
+
+    expect((await get(h.app, "/admin/channels")).status).toBe(401);
+    expect((await get(h.app, "/admin/channels", VENDOR_TOKEN)).status).toBe(401);
+    expect((await get(h.app, "/admin/channels?vendor=not-an-address", ADMIN_TOKEN)).status).toBe(400);
+
+    const all = await get(h.app, "/admin/channels", ADMIN_TOKEN);
+    expect(all.status).toBe(200);
+    expect((all.body.channels as { channelId: string }[]).map((c) => c.channelId)).toEqual([h.s.channelId, other.channelId].sort());
+    const mine = await get(h.app, `/admin/channels?vendor=${h.s.vendor}`, ADMIN_TOKEN);
+    expect(mine.body).toEqual({ channels: [{ channelId: h.s.channelId, vendor: h.s.vendor, state: "open", accepted: "20020", settled: "20020", settle: { confirmed: 1, pending: 0, failed: 0, rejected: 0, lastPeriod: 1 } }] });
+    expect((await get(h.app, `/admin/channels?vendor=${address()}`, ADMIN_TOKEN)).body).toEqual({ channels: [] });
+    // Nothing about the buyer, a voucher or a signature.
+    expect(JSON.stringify(all.body)).not.toContain(h.s.buyerAddress);
+    expect(JSON.stringify(all.body)).not.toMatch(BASE58_88);
+    for (const line of h.logs) expect(line).not.toContain(ADMIN_TOKEN);
+
+    // A failed one, on its own harness: owed, one failed operation, settled unchanged.
+    const f = harness();
+    await owedChannel(f);
+    f.behaviour.next.push(railDown);
+    await f.redeemer.runOnce();
+    const failed = await get(f.app, `/admin/channels?vendor=${f.s.vendor}`, ADMIN_TOKEN);
+    expect(failed.body).toEqual({ channels: [{ channelId: f.s.channelId, vendor: f.s.vendor, state: "open", accepted: "20020", settled: "0", settle: { confirmed: 0, pending: 0, failed: 1, rejected: 0, lastPeriod: 1 } }] });
+  });
+
   it("without a worker the routes answer 500 and without an attested binding 503", async () => {
     const h = harness();
     const none = createFacilitatorApp({ binding: ready(h.binding), stores: h.stores, adminToken: ADMIN_TOKEN, receiptTokens: new Map([[h.s.vendor, VENDOR_TOKEN]]) });

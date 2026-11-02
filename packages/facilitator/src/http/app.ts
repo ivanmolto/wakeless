@@ -4,6 +4,7 @@ import {
   SCHEME_ERROR_CODES,
   SCHEME_ID,
   X402_VERSION,
+  decodeBase58Exact,
   deriveChannelId,
   isChannelId,
   isSchemeErrorCode,
@@ -15,9 +16,9 @@ import {
   type SupportedResponse,
   type VerifyResponse,
 } from "@wakeless/scheme";
-import type { Alert, RedeemRunSummary, Redeemer } from "../redeem.js";
+import { periodOf, type Alert, type RedeemRunSummary, type Redeemer } from "../redeem.js";
 import { KeyedMutex } from "../stores/keyed-mutex.js";
-import type { ChannelRecord, Stores } from "../stores/types.js";
+import type { ChannelRecord, OperationRecord, Stores } from "../stores/types.js";
 import { bearerOf, isLoopback, tokenMatches, vendorOfToken } from "./auth.js";
 import type { BindingState } from "./binding-state.js";
 import type { DepositHandler } from "./deposit-handler.js";
@@ -85,6 +86,32 @@ export interface AlertsResponse {
 
 export type RedeemResponse = RedeemRunSummary;
 
+/**
+ * One channel as `GET /admin/channels` lists it (task 7.3): what a vendor's receipt reader
+ * cross-checks its receipts against. Amounts are base units as decimal strings. No buyer,
+ * no voucher, no signature.
+ */
+export interface AdminChannel {
+  readonly channelId: string;
+  readonly vendor: string;
+  readonly state: ChannelRecord["state"];
+  readonly accepted: string;
+  readonly settled: string;
+  /** Settle operations by status. */
+  readonly settle: {
+    readonly confirmed: number;
+    readonly pending: number;
+    readonly failed: number;
+    readonly rejected: number;
+    /** The highest period with an operation, or null when none was made. */
+    readonly lastPeriod: number | null;
+  };
+}
+
+export interface AdminChannelsResponse {
+  readonly channels: readonly AdminChannel[];
+}
+
 type VerifyVerdict = VerifyResponse & Partial<ErrorBody>;
 type SettleVerdict = SettlementResponse & Partial<ErrorBody>;
 
@@ -130,8 +157,8 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
 
   interface Answered {
     readonly code?: SchemeErrorCode;
-    /** `valid`, `settled`, `replayed`, `receipts`, `redeemed`, `alerts`; a verdict's code stands in its place. */
-    readonly outcome?: "valid" | "settled" | "replayed" | "receipts" | "redeemed" | "alerts";
+    /** `valid`, `settled`, `replayed`, `receipts`, `redeemed`, `alerts`, `channels`; a verdict's code stands in its place. */
+    readonly outcome?: "valid" | "settled" | "replayed" | "receipts" | "redeemed" | "alerts" | "channels";
     readonly hash?: string;
     readonly channelId?: string;
     readonly binding?: BindingState["status"];
@@ -428,6 +455,33 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
   app.post("/admin/redeem", async (c) => {
     const body: RedeemResponse = await redeemer().runOnce();
     answered(c, 200, { outcome: "redeemed" });
+    return c.json(body, 200, { "cache-control": "no-store" });
+  });
+
+  /** `GET /admin/channels[?vendor=<base58>]`: every channel, or one vendor's, by channel id. */
+  app.get("/admin/channels", async (c) => {
+    const vendor = c.req.query("vendor");
+    if (vendor !== undefined && decodeBase58Exact(vendor, 32) === null) {
+      throw new HttpError(400, SCHEME_ERROR_CODES.invalidPayload, "vendor must be a base58 address");
+    }
+    const records = (await stores.channels.list()).filter((record) => vendor === undefined || record.vendor === vendor);
+    records.sort((a, b) => a.channelId.localeCompare(b.channelId));
+    const channels: AdminChannel[] = [];
+    for (const record of records) {
+      const ops = (await stores.operations.list(record.channelId)).filter((op) => op.type === "settle" && periodOf(op.opId) !== undefined);
+      const count = (status: OperationRecord["status"]) => ops.filter((op) => op.status === status).length;
+      const periods = ops.map((op) => periodOf(op.opId)!);
+      channels.push({
+        channelId: record.channelId,
+        vendor: record.vendor,
+        state: record.state,
+        accepted: record.accepted.toString(),
+        settled: record.settled.toString(),
+        settle: { confirmed: count("confirmed"), pending: count("pending"), failed: count("failed"), rejected: count("rejected"), lastPeriod: periods.length === 0 ? null : Math.max(...periods) },
+      });
+    }
+    const body: AdminChannelsResponse = { channels };
+    answered(c, 200, { outcome: "channels" });
     return c.json(body, 200, { "cache-control": "no-store" });
   });
 

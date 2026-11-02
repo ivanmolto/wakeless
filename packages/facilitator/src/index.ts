@@ -3,6 +3,8 @@ export {
   DEFAULT_PRIVACY_FEE_BPS,
   DEFAULT_SETTLED_TTL_SECS,
   createFacilitatorApp,
+  type AdminChannel,
+  type AdminChannelsResponse,
   type AlertsResponse,
   type FacilitatorOptions,
   type HealthResponse,
