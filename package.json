@@ -18,7 +18,9 @@
     "keys": "tsx scripts/keys.ts",
     "tokens": "tsx scripts/tokens.ts",
     "airdrop": "tsx scripts/airdrop.ts",
+    "fund:private": "tsx scripts/fund-private.ts",
     "vendors": "pnpm --filter @wakeless/vendors start",
+    "vendor:receipts": "tsx --conditions=development scripts/vendor-receipts.ts",
     "client:20": "tsx --conditions=development scripts/client-20.ts",
     "agent-run": "tsx --conditions=development scripts/agent-run.ts"
   },

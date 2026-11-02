@@ -200,6 +200,9 @@ importers:
       '@hono/node-server':
         specifier: 2.1.5
         version: 2.1.5(hono@4.13.14)
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../binding
       '@wakeless/scheme':
         specifier: workspace:*
         version: link:../scheme
@@ -210,9 +213,12 @@ importers:
         specifier: 4.13.14
         version: 4.13.14
     devDependencies:
-      '@wakeless/binding':
+      '@solana/kit':
+        specifier: 8.6.0
+        version: 8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@wakeless/binding-magicblock':
         specifier: workspace:*
-        version: link:../binding
+        version: link:../binding-magicblock
       '@wakeless/facilitator':
         specifier: workspace:*
         version: link:../facilitator

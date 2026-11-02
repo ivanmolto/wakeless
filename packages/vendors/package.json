@@ -17,12 +17,14 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
+    "@wakeless/binding": "workspace:*",
     "@wakeless/scheme": "workspace:*",
     "@wakeless/vendor": "workspace:*",
     "hono": "4.13.14"
   },
   "devDependencies": {
-    "@wakeless/binding": "workspace:*",
+    "@solana/kit": "8.6.0",
+    "@wakeless/binding-magicblock": "workspace:*",
     "@wakeless/facilitator": "workspace:*"
   }
 }
