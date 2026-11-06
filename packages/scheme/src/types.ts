@@ -146,7 +146,39 @@ export interface VoucherPayload {
   readonly voucher: BatchVoucher;
 }
 
-export type ShieldedPayload = DepositPayload | VoucherPayload;
+/**
+ * The buyer's close request (task 8.1), sent by the buyer straight to the facilitator's
+ * `/settle`. `voucher` is the buyer's latest voucher (its own signature over the
+ * cumulative it last committed to); `closeSignature` is a second buyer signature over
+ * the 42-byte close message built from that voucher (`encodeCloseMessage`). The
+ * facilitator moves the channel to `closing`; the vendor may still present its latest
+ * voucher for `withdrawDelay` seconds; then the worker pays the vendor what is owed and
+ * refunds `deposit − settled` to the buyer's private balance. Repeating the request on a
+ * closing or closed channel answers its current `extra.closeState` and changes nothing.
+ */
+export interface RefundPayload {
+  readonly type: "refund";
+  readonly channelConfig: ChannelConfig;
+  readonly voucher: BatchVoucher;
+  /** Base58 Ed25519 by `channelConfig.buyer` over the close message. */
+  readonly closeSignature: string;
+}
+
+export type ShieldedPayload = DepositPayload | VoucherPayload | RefundPayload;
+
+/** The close of a channel as `/settle` reports it on a `refund` payload. Unix seconds; amounts decimal u64 strings. */
+export interface CloseState {
+  readonly state: "closing" | "closed";
+  /** When the close was requested (the buyer's request, or the idle close). */
+  readonly requestedAt: number;
+  /** `requestedAt + withdrawDelay`: the vendor's latest voucher is accepted until then; the refund is sent after. */
+  readonly refundAfter: number;
+  readonly deposit: string;
+  /** Cumulative redeemed to the vendor so far. */
+  readonly settled: string;
+  /** The refund once it has been sent: `deposit − settled` at that moment, and the private transfer's signature (null when the facilitator reconciled it at startup without one). */
+  readonly refund: { readonly amount: string; readonly signature: string | null } | null;
+}
 
 /** The `PAYMENT-SIGNATURE` envelope (`specs/x402-specification-v2.md:L197`-`L205`). */
 export interface PaymentPayload {
@@ -215,6 +247,8 @@ export interface SettlementExtra {
   readonly receipt?: SettlementReceipt;
   /** `true` when `/settle` answered a repeated identical payload with its stored result. */
   readonly replayed?: boolean;
+  /** On a `refund` payload: where the close stands. */
+  readonly closeState?: CloseState;
 }
 
 /** `PAYMENT-RESPONSE` (`specs/x402-specification-v2.md:L244`-`L253`; SVM fields under `extra`). */

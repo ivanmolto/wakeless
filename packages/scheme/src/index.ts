@@ -1,4 +1,13 @@
 export { decodeBase58, decodeBase58Exact, encodeBase58 } from "./base58.js";
+export {
+  CLOSE_MAGIC,
+  CLOSE_MESSAGE_LENGTH,
+  encodeCloseMessage,
+  parseCloseSignature,
+  signCloseRequest,
+  tryEncodeCloseMessage,
+  verifyCloseRequest,
+} from "./close.js";
 export { clientRefOf, deriveChannelId, isChannelId, type ChannelIdInputs } from "./channel-id.js";
 export {
   SCHEME_ERROR_CODES,
@@ -18,7 +27,9 @@ export {
   type BindingId,
   type ChannelConfig,
   type ChannelState,
+  type CloseState,
   type DepositPayload,
+  type RefundPayload,
   type PaymentPayload,
   type PaymentRequired,
   type PaymentRequirements,

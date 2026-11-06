@@ -39,6 +39,8 @@ export const SCHEME_ERROR_CODES = {
   depositBelowMinDeposit: `${SVM}deposit_below_min_deposit`,
   channelState: `${SVM}channel_state`,
   channelClosing: `${SVM}channel_closing`,
+  /** A `refund` payload whose close signature is not the buyer's over the channel id and the latest voucher's cumulative. */
+  closeAuthorization: `${SVM}close_authorization`,
   /** Same deposit signature or payload settled twice. */
   duplicateSettlement: "duplicate_settlement",
 
