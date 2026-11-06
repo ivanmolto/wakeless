@@ -1,0 +1,12 @@
+{
+  "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d",
+  "status": "PENDING_DEPOSIT",
+  "updatedAt": "2026-11-06T10:00:05.000Z",
+  "quoteResponse": { "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d" },
+  "swapDetails": {
+    "intentHashes": [],
+    "nearTxHashes": [],
+    "originChainTxHashes": [],
+    "destinationChainTxHashes": []
+  }
+}

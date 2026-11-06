@@ -1,0 +1,23 @@
+{
+  "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d",
+  "status": "REFUNDED",
+  "updatedAt": "2026-11-06T10:25:40.000Z",
+  "quoteResponse": { "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d" },
+  "swapDetails": {
+    "intentHashes": [],
+    "nearTxHashes": [],
+    "amountIn": "2000000",
+    "amountInFormatted": "2.0",
+    "depositedAmount": "1000000",
+    "depositedAmountFormatted": "1.0",
+    "refundedAmount": "997600",
+    "refundedAmountFormatted": "0.9976",
+    "refundedAmountUsd": "0.99751",
+    "refundReason": "PARTIAL_DEPOSIT",
+    "originChainTxHashes": [
+      { "hash": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b", "explorerUrl": "https://basescan.org/tx/0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b" },
+      { "hash": "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c", "explorerUrl": "https://basescan.org/tx/0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c" }
+    ],
+    "destinationChainTxHashes": []
+  }
+}

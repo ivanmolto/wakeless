@@ -1,0 +1,17 @@
+{
+  "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d",
+  "status": "FAILED",
+  "updatedAt": "2026-11-06T10:04:00.000Z",
+  "message": "Swap execution failed: no solver filled the intent before the deadline",
+  "quoteResponse": { "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d" },
+  "swapDetails": {
+    "intentHashes": [],
+    "nearTxHashes": [],
+    "amountIn": "2000000",
+    "amountInFormatted": "2.0",
+    "originChainTxHashes": [
+      { "hash": "0x9c1f0a7d5e3b2c4a6f8e0d1b3a5c7e9f1b3d5f7a9c1e3f5a7b9d1f3a5c7e9b1d", "explorerUrl": "https://basescan.org/tx/0x9c1f0a7d5e3b2c4a6f8e0d1b3a5c7e9f1b3d5f7a9c1e3f5a7b9d1f3a5c7e9b1d" }
+    ],
+    "destinationChainTxHashes": []
+  }
+}

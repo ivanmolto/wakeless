@@ -19,6 +19,7 @@
     "tokens": "tsx scripts/tokens.ts",
     "airdrop": "tsx scripts/airdrop.ts",
     "fund:private": "tsx scripts/fund-private.ts",
+    "fund": "tsx --conditions=development packages/client/src/cli.ts fund",
     "vendors": "pnpm --filter @wakeless/vendors start",
     "vendor:receipts": "tsx --conditions=development scripts/vendor-receipts.ts",
     "client:20": "tsx --conditions=development scripts/client-20.ts",

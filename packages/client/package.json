@@ -11,6 +11,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "wakeless": "./dist/cli.js"
+  },
   "files": [
     "dist",
     "README.md"

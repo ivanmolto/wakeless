@@ -59,7 +59,22 @@ export interface LocalChannel {
   readonly close?: LocalChannelClose;
 }
 
-/** One paid request, as `getTrajectory()` returns it. `amount` is the price the vendor nets; `cumulative` includes the fee shares. */
+/**
+ * A channel funding through Aurora Confidential Intents (`wakeless fund`, task 8.3):
+ * the origin chain, the amount that arrived (smallest units) and the Solana arrival
+ * transaction. The arrival is public; the origin wallet and the route are not.
+ */
+export interface FundingSource {
+  readonly originChain: string;
+  readonly amount: string;
+  readonly solanaArrivalSignature: string;
+}
+
+/**
+ * One paid request, as `getTrajectory()` returns it. `amount` is the price the vendor nets;
+ * `cumulative` includes the fee shares. A funding writes one entry too: `vendor: "aurora"`,
+ * `route: "fund"`, `cumulative: "0"`, with the `FundingSource`.
+ */
 export interface TrajectoryEntry {
   readonly vendor: string;
   /** The request's path. */
@@ -68,7 +83,7 @@ export interface TrajectoryEntry {
   readonly cumulative: string;
   /** ISO 8601. */
   readonly timestamp: string;
-  readonly fundingSource?: string;
+  readonly fundingSource?: string | FundingSource;
   /** Set when this request carried a deposit (an opening or a top-up): its amount. */
   readonly deposit?: string;
   /**
@@ -137,7 +152,12 @@ function isClose(value: unknown): value is LocalChannelClose {
 function isEntry(value: unknown): value is TrajectoryEntry {
   if (!isObject(value) || typeof value.vendor !== "string" || typeof value.route !== "string" || typeof value.amount !== "string" || typeof value.cumulative !== "string" || typeof value.timestamp !== "string") return false;
   if (value.depositSignature !== undefined && (typeof value.depositSignature !== "string" || value.deposit === undefined)) return false;
+  if (value.fundingSource !== undefined && typeof value.fundingSource !== "string" && !isFundingSource(value.fundingSource)) return false;
   return true;
+}
+
+function isFundingSource(value: unknown): value is FundingSource {
+  return isObject(value) && typeof value.originChain === "string" && typeof value.amount === "string" && U64.test(value.amount) && typeof value.solanaArrivalSignature === "string";
 }
 
 function unreadable(reason: string): WakelessClientError {

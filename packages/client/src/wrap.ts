@@ -32,7 +32,7 @@ import {
   parsePaymentResponse,
 } from "./parse.js";
 import { createMagicBlockRail, type MagicBlockRailOptions } from "./rail.js";
-import { LocalChannelStore, defaultStorePath, type LocalChannel, type TrajectoryEntry } from "./store.js";
+import { LocalChannelStore, defaultStorePath, type FundingSource, type LocalChannel, type TrajectoryEntry } from "./store.js";
 
 /** `extra.minDeposit` absent and no `defaultDeposit` configured: deposit this many requests' worth, as the vendor middleware's own default does. */
 export const DEFAULT_DEPOSIT_MULTIPLE = 100n;
@@ -55,8 +55,8 @@ export interface WakelessOptions extends MagicBlockRailOptions {
   readonly facilitatorUrl?: string;
   /** Opening deposit when the accept names no `extra.minDeposit`. Default: 100 times the route's price. */
   readonly defaultDeposit?: bigint;
-  /** Recorded on each trajectory entry, for channels funded through Aurora (`wakeless fund`). */
-  readonly fundingSource?: string;
+  /** Recorded on each trajectory entry, for channels funded through Aurora (`wakeless fund`): the `FundingSource` the funding recorded, or a label. */
+  readonly fundingSource?: string | FundingSource;
   /**
    * A spend policy, run once per paid request after the 402 is read and before any
    * deposit is made or voucher signed. Throw to refuse: nothing is signed or sent and

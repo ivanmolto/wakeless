@@ -1,0 +1,7 @@
+# Aurora fixtures for `fund.test.ts`
+
+Recorded shapes for the three endpoints `wakeless fund` calls, served by the test's fake fetch. No test sends anything to Aurora.
+
+- `tokens.json`: entries from the real `GET /api/tokens` answer of 31 Oct 2026 (`docs/aurora-dry-run.md`): the USDC asset ids on Base, NEAR, Arbitrum and Solana, plus two non-USDC entries so the filter is exercised.
+- `quote.json`: the real `dry: true` quote response of 31 Oct 2026 with `dry: false` and the fields a live quote adds (`depositAddress`, `deadline`, `timeWhenInactive`), at 2 USDC. The deposit address and the signature are placeholders; `referral` is redacted as the dry-run script redacts it.
+- `status-*.json`: one body per state the module handles, in the shape the NEAR Intents 1Click reference gives for `GET /status` (`status`, `updatedAt`, `swapDetails` with `originChainTxHashes` and `destinationChainTxHashes` as `{hash, explorerUrl}`), which Aurora's API wraps. Hashes are placeholders. These four were not recorded from Aurora: the dry run of task 2.2 made no swap, so no status beyond "not found" was ever observed. The first live run (task 10.1) re-records them from Aurora's actual answers; `docs/DEVIATIONS.md` carries the note.

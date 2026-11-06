@@ -1,0 +1,24 @@
+{
+  "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d",
+  "status": "SUCCESS",
+  "updatedAt": "2026-11-06T10:03:12.000Z",
+  "quoteResponse": { "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d" },
+  "swapDetails": {
+    "intentHashes": ["7Qm3w2xQ9n4YtQd3e3Z1vVqgE7qkqXx9mZcq1rXbQ5Mt"],
+    "nearTxHashes": ["4h1cYj3W2pLx8sKQvD9m3nTqE6bRfUw1zPaG7cH5oVyN"],
+    "amountIn": "2000000",
+    "amountInFormatted": "2.0",
+    "amountInUsd": "1.99983",
+    "amountOut": "1745238",
+    "amountOutFormatted": "1.745238",
+    "amountOutUsd": "1.74509",
+    "slippage": 100,
+    "originChainTxHashes": [
+      { "hash": "0x9c1f0a7d5e3b2c4a6f8e0d1b3a5c7e9f1b3d5f7a9c1e3f5a7b9d1f3a5c7e9b1d", "explorerUrl": "https://basescan.org/tx/0x9c1f0a7d5e3b2c4a6f8e0d1b3a5c7e9f1b3d5f7a9c1e3f5a7b9d1f3a5c7e9b1d" }
+    ],
+    "destinationChainTxHashes": [
+      { "hash": "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW", "explorerUrl": "https://solscan.io/tx/5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW" }
+    ],
+    "withdrawFee": "254762"
+  }
+}

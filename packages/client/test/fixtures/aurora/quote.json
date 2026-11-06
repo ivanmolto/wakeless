@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-11-06T10:00:00.426Z",
+  "signature": "ed25519:fixture",
+  "correlationId": "5dd6638a-046a-48e6-9bf2-192bf110b20d",
+  "quoteRequest": {
+    "dry": false,
+    "swapType": "EXACT_INPUT",
+    "depositType": "ORIGIN_CHAIN",
+    "depositMode": "SIMPLE",
+    "quoteWaitingTimeMs": 0,
+    "confidentiality": "advanced",
+    "amount": "2000000",
+    "originAsset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "destinationAsset": "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near",
+    "slippageTolerance": 100,
+    "refundTo": "0xf965bb50729bc0ceaec4da36ab117b345ac5fd74",
+    "refundType": "ORIGIN_CHAIN",
+    "recipient": "D36ojAXRGMaUM4Vpv5phRK5z53vzaLGJrBRzerjK3q4X",
+    "recipientType": "DESTINATION_CHAIN",
+    "deadline": "2026-11-06T10:20:00.000Z",
+    "referral": "[redacted]"
+  },
+  "quote": {
+    "depositAddress": "0x2b1c2d9f1a0c4e6b8d7f3a5c9e1b2d4f6a8c0e2b",
+    "deadline": "2026-11-09T10:00:00.000Z",
+    "timeWhenInactive": "2026-11-09T10:00:00.000Z",
+    "timeEstimate": 32,
+    "amountIn": "2000000",
+    "amountInFormatted": "2.0",
+    "amountInUsd": "1.999830000000",
+    "minAmountIn": "2000000",
+    "amountOut": "1745238",
+    "amountOutFormatted": "1.745238",
+    "amountOutUsd": "1.745090000000",
+    "minAmountOut": "1727786",
+    "refundFee": "2400",
+    "withdrawFee": "254762"
+  }
+}
