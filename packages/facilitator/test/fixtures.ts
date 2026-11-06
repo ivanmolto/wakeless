@@ -48,6 +48,7 @@ export function fakeBinding(escrowAddress = address()): SettlementBinding {
     settle: unused("settle"),
     refund: unused("refund"),
     privateBalance: unused("privateBalance"),
+    transferStatus: unused("transferStatus"),
     observe: unused("observe"),
   };
 }

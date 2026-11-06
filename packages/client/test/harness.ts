@@ -43,6 +43,7 @@ export function confirmingBinding(escrowAddress: string): SettlementBinding {
     settle: unused("settle"),
     refund: unused("refund"),
     privateBalance: unused("privateBalance"),
+    transferStatus: unused("transferStatus"),
     observe: unused("observe"),
   };
 }

@@ -264,6 +264,23 @@ describe("MagicBlockBinding over a fake transport", () => {
     expect(slow.teeCalls.filter((c) => c.method === "getTransaction")).toHaveLength(2);
   });
 
+  it("transferStatus asks the TEE under the escrow's own login and says only existence and success", async () => {
+    const LANDED = asSignature("5XKE2bt32CvgwRSNc4iaESJUd397WQLut7xHSudQK18YnGXACvEMLAsMU7AVAmy4BL66PpGxxPsx2ntc2Lz319bp");
+    const FAILED = asSignature("HkLhGamKri8TLU7MCAoxggWr7TthinnQHCMN9DpUG2DA9xgHLzXkhqAzQEADyBHSsHB36BvnHJxk8CWUnncTRVn");
+    const MISSING = asSignature("2JjvPa9kXC17oVmiZh49evtGu1xExduy2Fr9kDvDrn2kNGq6fXYUM5yYBYWS2XFdeoZy4J1ttpTdag2d7X8bdvTN");
+    const transport = fake({ teeTransactions: new Map<string, unknown>([[LANDED, teeTransactionAsObserved(LANDED, null)], [FAILED, teeTransactionAsObserved(FAILED, { InstructionError: [0, "x"] })], [MISSING, null]]) });
+    const binding = await create(transport);
+    expect(await binding.transferStatus(LANDED)).toBe("landed");
+    expect(await binding.transferStatus(FAILED)).toBe("failed");
+    expect(await binding.transferStatus(MISSING)).toBe("not_found");
+    const reads = transport.teeCalls.filter((c) => c.method === "getTransaction");
+    expect(reads).toHaveLength(3);
+    expect(reads.every((c) => c.token === `tee-token-for-${escrowAddress.slice(0, 4)}`)).toBe(true);
+    // A read: nothing built, nothing sent.
+    expect(transport.calls("POST", "/v1/spl/transfer")).toHaveLength(0);
+    expect(transport.teeCalls.some((c) => c.method === "sendTransaction")).toBe(false);
+  });
+
   it("refund is a private transfer back to the buyer without shaping", async () => {
     const transport = fake({ balance: 510_000n });
     const binding = await create(transport);

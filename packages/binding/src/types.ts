@@ -83,6 +83,14 @@ export interface SettlementBinding {
   refund(to: Address, amount: bigint, ref: ClientRef): Promise<{ sig: Signature }>;
   /** The escrow's private balance in base units. */
   privateBalance(): Promise<bigint>;
+  /**
+   * Whether a transfer the escrow submitted is readable on the rail under the escrow's own
+   * login, and succeeded: the evidence a worker asks for before it resends a transfer it
+   * did not see confirmed (`unconfirmedSignatureOf`). The rail answers existence and
+   * success only, never the amount or recipient. `not_found` is not proof that nothing
+   * landed, and the caller must say what it does with it.
+   */
+  transferStatus(sig: Signature): Promise<"landed" | "failed" | "not_found">;
   /** What the public ledger shows for a signature; what the watcher checks. */
   observe(sig: Signature): Promise<ObserverView>;
 }

@@ -1,6 +1,6 @@
 import type { Address, Signature } from "@solana/kit";
-import { BINDING_ERROR_CODES, channelId as bindingChannelId, clientRefId, isBindingError, type SettlementBinding } from "@wakeless/binding";
-import { decodeBase58Exact, publicKeyOf, signReceipt, type SettlementReceipt, type VoucherKeypair } from "@wakeless/scheme";
+import { BINDING_ERROR_CODES, channelId as bindingChannelId, clientRefId, isBindingError, unconfirmedSignatureOf, type SettlementBinding } from "@wakeless/binding";
+import { SCHEME_ERROR_CODES, decodeBase58Exact, publicKeyOf, signReceipt, type SettlementReceipt, type VoucherKeypair } from "@wakeless/scheme";
 import type { FacilitatorLogger } from "./http/log.js";
 import { KeyedMutex } from "./stores/keyed-mutex.js";
 import type { ChannelRecord, OperationRecord, Stores } from "./stores/types.js";
@@ -18,6 +18,17 @@ import type { ChannelRecord, OperationRecord, Stores } from "./stores/types.js";
  * the operation `failed` (attempts + 1) and the amount owed; `shielded_binding_rejected`
  * makes it `rejected`, terminal: the channel is never redeemed again by this worker, an
  * alert is kept, and nothing is retried publicly (`CLAUDE.md`, Privacy rules).
+ *
+ * A transfer the binding submitted but did not see confirmed (`unconfirmedSignatureOf`)
+ * is `failed` with its signature kept: `settlement_pending` (briefing §3, row 5), the
+ * amount still owed, alerted `settle_unconfirmed`, and listed with its signature under
+ * `pending` on `GET /receipts/:channelId` so the vendor can look for it on the rail. It
+ * is never resent on its signature alone: once its backoff has passed, the next run
+ * asks the rail for the signature (`binding.transferStatus`) and, only when the rail does
+ * not know it, settles its fate against the escrow's private balance exactly as
+ * `reconcile()` does; then it either confirms it (a signed receipt follows, since the
+ * signature is known) or clears the signature and retries the same operation, same
+ * period and amount.
  *
  * `reconcile()` runs once at startup, before any transfer: every `pending` operation is
  * one the process died inside. The rail shows nothing of an ephemeral transfer to anyone,
@@ -59,11 +70,13 @@ export interface RedeemDeps {
 
 export type AlertKind =
   | "settle_rejected"
+  | "settle_unconfirmed"
   | "settle_attempts_exhausted"
   | "settle_confirmed_not_recorded"
   | "settle_reconciled_sent"
   | "settle_reconciled_unsent"
   | "refund_rejected"
+  | "refund_unconfirmed"
   | "refund_attempts_exhausted"
   | "refund_confirmed_not_recorded"
   | "refund_reconciled_sent"
@@ -119,6 +132,26 @@ export interface CloseRunSummary {
   readonly skipped: number;
 }
 
+/**
+ * A settle operation that has not paid the vendor, as `GET /receipts/:channelId` lists it
+ * beside the receipts. `settlement_pending` (non-terminal, `retryable: true`) for one the
+ * worker still owes: `transaction` is the private transfer's signature when one was
+ * submitted and not seen confirmed, so the vendor can look for it on the rail under its
+ * own login, and `""` when nothing left the escrow (the next run sends it again).
+ * `shielded_binding_rejected` (terminal, `retryable: false`, `transaction: ""`) for one
+ * the rail refused: the amount stays owed for an operator, and is never retried publicly.
+ */
+export interface OutstandingSettlement {
+  readonly period: number;
+  readonly cumulative: string;
+  readonly amount: string;
+  readonly status: "pending" | "failed" | "rejected";
+  readonly attempts: number;
+  readonly code: typeof SCHEME_ERROR_CODES.settlementPending | typeof SCHEME_ERROR_CODES.shieldedBindingRejected;
+  readonly retryable: boolean;
+  readonly transaction: string;
+}
+
 export interface Redeemer {
   /** The receipt signer's public key, base58. */
   readonly signer: string;
@@ -141,6 +174,8 @@ export interface Redeemer {
   alerts(): readonly Alert[];
   /** Every facilitator-signed receipt of the channel, by period. */
   receipts(channelId: string): Promise<SettlementReceipt[]>;
+  /** Every settle operation of the channel that has not paid the vendor, by period: owed (`pending`) and refused (`rejected`). */
+  outstanding(channelId: string): Promise<{ pending: OutstandingSettlement[]; rejected: OutstandingSettlement[] }>;
 }
 
 const MAX_ALERTS = 1000;
@@ -255,6 +290,68 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
     });
   }
 
+  /**
+   * What the escrow should hold if no unsettled transfer went out, less what it holds:
+   * the amount of every transfer that left the escrow without its record saying so.
+   * The rail shows nothing of an ephemeral transfer to anyone, so this is the only evidence.
+   */
+  async function deficitNow(): Promise<bigint> {
+    let deposits = 0n;
+    let accountedOut = 0n;
+    for (const channel of await stores.channels.list()) {
+      deposits += channel.deposit;
+      for (const op of await stores.operations.list(channel.channelId)) {
+        if (op.status !== "confirmed") continue;
+        if (isSettle(op)) accountedOut += BigInt(payloadOf(op).amount);
+        else if (isRefund(op)) accountedOut += BigInt(refundPayloadOf(op).amount);
+      }
+    }
+    return deposits - accountedOut - (await binding.privateBalance());
+  }
+
+  /**
+   * Whether a transfer submitted and not seen confirmed left the escrow. The rail is asked
+   * first, under the escrow's own login: `landed` and `failed` are its word. `not_found` is
+   * not proof either way (the TEE answered nothing for it before, too), so then the escrow's
+   * balance decides, as at startup. Logged by outcome, never by signature.
+   */
+  async function wasSent(op: OperationRecord, amount: bigint): Promise<boolean> {
+    let status: "landed" | "failed" | "not_found" | "unchecked";
+    try {
+      status = await binding.transferStatus(op.signature as Signature);
+    } catch {
+      status = "unchecked";
+    }
+    log("transfer_status", { channelId: op.channelId, opId: op.opId, status });
+    if (status === "landed") return true;
+    if (status === "failed") return false;
+    return (await deficitNow()) >= amount;
+  }
+
+  /**
+   * A failed settle operation that kept a signature was submitted and not seen confirmed.
+   * Its fate is settled before anything is sent (`wasSent`): found gone, it is confirmed
+   * under its own signature with a signed receipt; found still there, its signature is
+   * cleared and the operation is `pending` again for the retry.
+   */
+  async function reconcileUnconfirmedSettle(channelId: string, failed: OperationRecord): Promise<OperationRecord | "confirmed"> {
+    const payload = payloadOf(failed);
+    const signature = failed.signature!;
+    if (await wasSent(failed, BigInt(payload.amount))) {
+      await stores.operations.transition(channelId, failed.opId, { status: "pending" });
+      const receipt = signReceipt(deps.signer, { channelId, period: payload.period, cumulative: payload.cumulative, amount: payload.amount, signature: signature as Signature });
+      await advanceSettled(channelId, BigInt(payload.cumulative));
+      const confirmed = await stores.operations.transition(channelId, failed.opId, { status: "confirmed", signature, receipt: { ...receipt } });
+      retryAfter.delete(`${channelId}/${failed.opId}`);
+      alert("settle_reconciled_sent", confirmed, payload.period);
+      return "confirmed";
+    }
+    // Not sent: the signature goes, and the operation is retried now, same period and amount.
+    const pending = await stores.operations.transition(channelId, failed.opId, { status: "pending", signature: null });
+    alert("settle_reconciled_unsent", pending, payload.period);
+    return pending;
+  }
+
   /** What to do for one channel this run: an operation to call the binding with, or a reason to skip. */
   async function prepare(channel: ChannelRecord): Promise<{ op: OperationRecord; payload: SettlePayload } | "skip"> {
     const ops = await settleOps(channel.channelId);
@@ -273,6 +370,11 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
         }
         const notBefore = retryAfter.get(key);
         if (notBefore !== undefined && now() < notBefore) return "skip";
+        if (last.signature !== undefined) {
+          const outcome = await reconcileUnconfirmedSettle(channel.channelId, last);
+          if (outcome === "confirmed") return "skip";
+          return { op: outcome, payload: payloadOf(outcome) };
+        }
         const op = await stores.operations.transition(channel.channelId, last.opId, { status: "pending" });
         return { op, payload: payloadOf(op) };
       }
@@ -309,8 +411,15 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
         alert("settle_rejected", rejected, payload.period, { code: error.code, apiCode: error.apiCode });
         return "rejected";
       }
-      const failed = await stores.operations.transition(channelId, op.opId, { status: "failed" });
+      // Submitted and not seen confirmed: `settlement_pending`. The signature stays on the
+      // record (never in a log) and the operation is reconciled before any retry.
+      const unconfirmed = unconfirmedSignatureOf(error);
+      const failed = await stores.operations.transition(channelId, op.opId, { status: "failed", ...(unconfirmed === undefined ? {} : { signature: unconfirmed }) });
       retryAfter.set(`${channelId}/${op.opId}`, now() + backoffSeconds(failed.attempts, backoff));
+      if (unconfirmed !== undefined) {
+        alert("settle_unconfirmed", failed, payload.period, { code: SCHEME_ERROR_CODES.settlementPending });
+        return "failed";
+      }
       log("settle_failed", { channelId, opId: op.opId, period: payload.period, attempts: failed.attempts, errorName: error instanceof Error ? error.name : "Error" }, "warn");
       return "failed";
     }
@@ -380,8 +489,24 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
       }
       const notBefore = retryAfter.get(key);
       if (notBefore !== undefined && now() < notBefore) return "skipped";
-      op = await stores.operations.transition(channelId, existing.opId, { status: "pending" });
-      payload = refundPayloadOf(op);
+      payload = refundPayloadOf(existing);
+      if (existing.signature !== undefined) {
+        // Submitted and not seen confirmed: its fate first, as for a settle.
+        const { signature } = existing;
+        if (await wasSent(existing, BigInt(payload.amount))) {
+          await stores.operations.transition(channelId, existing.opId, { status: "pending" });
+          const confirmed = await stores.operations.transition(channelId, existing.opId, { status: "confirmed", signature });
+          await markClosed(channelId);
+          retryAfter.delete(key);
+          alert("refund_reconciled_sent", confirmed, 0);
+          log("channel_closed", { channelId });
+          return "closed";
+        }
+        op = await stores.operations.transition(channelId, existing.opId, { status: "pending", signature: null });
+        alert("refund_reconciled_unsent", op, 0);
+      } else {
+        op = await stores.operations.transition(channelId, existing.opId, { status: "pending" });
+      }
     } else {
       const amount = channel.deposit - channel.settled;
       if (amount <= 0n) {
@@ -405,8 +530,13 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
         alert("refund_rejected", rejected, 0, { code: error.code, apiCode: error.apiCode });
         return "rejected";
       }
-      const failed = await stores.operations.transition(channelId, op.opId, { status: "failed" });
+      const unconfirmed = unconfirmedSignatureOf(error);
+      const failed = await stores.operations.transition(channelId, op.opId, { status: "failed", ...(unconfirmed === undefined ? {} : { signature: unconfirmed }) });
       retryAfter.set(`${channelId}/${op.opId}`, now() + backoffSeconds(failed.attempts, backoff));
+      if (unconfirmed !== undefined) {
+        alert("refund_unconfirmed", failed, 0, { code: SCHEME_ERROR_CODES.settlementPending });
+        return "failed";
+      }
       log("refund_failed", { channelId, opId: op.opId, attempts: failed.attempts, errorName: error instanceof Error ? error.name : "Error" }, "warn");
       return "failed";
     }
@@ -482,28 +612,21 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
       const channels = await stores.channels.list();
       // Settle operations carry a period; a refund (`refund:1`) carries none and closes the channel when it is found sent.
       const pending: { op: OperationRecord; amount: bigint; period: number; settle?: SettlePayload }[] = [];
-      let accountedOut = 0n;
-      let deposits = 0n;
       for (const channel of channels) {
-        deposits += channel.deposit;
         for (const op of await settleOps(channel.channelId)) {
-          if (op.status === "confirmed") accountedOut += BigInt(payloadOf(op).amount);
-          else if (op.status === "pending") {
-            const settle = payloadOf(op);
-            pending.push({ op, amount: BigInt(settle.amount), period: settle.period, settle });
-          }
+          if (op.status !== "pending") continue;
+          const settle = payloadOf(op);
+          pending.push({ op, amount: BigInt(settle.amount), period: settle.period, settle });
         }
         for (const op of (await stores.operations.list(channel.channelId)).filter(isRefund)) {
-          if (op.status === "confirmed") accountedOut += BigInt(refundPayloadOf(op).amount);
-          else if (op.status === "pending") pending.push({ op, amount: BigInt(refundPayloadOf(op).amount), period: 0 });
+          if (op.status === "pending") pending.push({ op, amount: BigInt(refundPayloadOf(op).amount), period: 0 });
         }
       }
       const summary = { pending: pending.length, sent: 0, unsent: 0 };
       if (pending.length === 0) return summary;
 
       // What the escrow should hold if no pending transfer went out, against what it holds.
-      const balance = await binding.privateBalance();
-      let deficit = deposits - accountedOut - balance;
+      let deficit = await deficitNow();
       pending.sort((a, b) => a.op.channelId.localeCompare(b.op.channelId) || a.period - b.period);
       for (const { op, amount, period, settle } of pending) {
         const refund = settle === undefined;
@@ -571,7 +694,26 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
       }
       return out;
     },
+    async outstanding(channelId) {
+      return outstandingOf(await settleOps(channelId));
+    },
   };
+}
+
+/** The settle operations that have not paid the vendor, split as `GET /receipts/:channelId` lists them. */
+export function outstandingOf(ops: readonly OperationRecord[]): { pending: OutstandingSettlement[]; rejected: OutstandingSettlement[] } {
+  const pending: OutstandingSettlement[] = [];
+  const rejected: OutstandingSettlement[] = [];
+  for (const op of ops) {
+    if (!isSettle(op) || op.status === "confirmed") continue;
+    const { period, cumulative, amount } = payloadOf(op);
+    if (op.status === "rejected") {
+      rejected.push({ period, cumulative, amount, status: op.status, attempts: op.attempts, code: SCHEME_ERROR_CODES.shieldedBindingRejected, retryable: false, transaction: "" });
+    } else {
+      pending.push({ period, cumulative, amount, status: op.status, attempts: op.attempts, code: SCHEME_ERROR_CODES.settlementPending, retryable: true, transaction: op.signature ?? "" });
+    }
+  }
+  return { pending, rejected };
 }
 
 /** The signature the binding reported for a confirmed settle operation, when one was. */

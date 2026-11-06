@@ -41,3 +41,21 @@ export class BindingError extends Error {
 export function isBindingError(error: unknown, code?: BindingErrorCode): error is BindingError {
   return error instanceof BindingError && (code === undefined || error.code === code);
 }
+
+/** A 64-byte base58 signature is 86 to 88 characters. */
+const SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{86,88}$/;
+
+/**
+ * The signature of a transfer that a binding submitted but did not see confirmed, when
+ * `settle` or `refund` threw such an error (the MagicBlock binding's
+ * `UnconfirmedTransferError`). The contract is the shape, not the class, so no caller
+ * imports a binding: a thrown error carrying a 64-byte base58 `signature` means "sent,
+ * fate unknown"; the caller keeps the amount owed, keeps the signature, and never resends
+ * before it has settled that fate (briefing §3, `settlement_pending`). Anything else is
+ * a plain failure: nothing left the escrow.
+ */
+export function unconfirmedSignatureOf(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const { signature } = error as { signature?: unknown };
+  return typeof signature === "string" && SIGNATURE.test(signature) ? signature : undefined;
+}

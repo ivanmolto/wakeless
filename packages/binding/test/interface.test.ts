@@ -39,6 +39,9 @@ class FakeBinding implements SettlementBinding {
   async privateBalance() {
     return 0n;
   }
+  async transferStatus(): Promise<"landed" | "failed" | "not_found"> {
+    return "not_found";
+  }
   async observe(sig: Signature): Promise<ObserverView> {
     return { signature: sig, onBaseLayer: false, programIds: [], signers: [], plaintextAmounts: [], plaintextRecipients: [], memoText: [], feeTransfers: [] };
   }

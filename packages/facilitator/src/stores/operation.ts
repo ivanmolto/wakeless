@@ -26,11 +26,13 @@ export function applyChange(current: OperationRecord, change: OperationChange): 
       `operation ${current.opId} cannot go from ${current.status} to ${change.status}`,
     );
   }
+  const { signature: previous, ...rest } = current;
+  const signature = change.signature === undefined ? previous : change.signature;
   return {
-    ...current,
+    ...rest,
     status: change.status,
     attempts: change.status === "failed" ? current.attempts + 1 : current.attempts,
-    ...(change.signature !== undefined ? { signature: change.signature } : {}),
+    ...(signature !== null && signature !== undefined ? { signature } : {}),
     ...(change.receipt !== undefined ? { receipt: change.receipt } : {}),
   };
 }

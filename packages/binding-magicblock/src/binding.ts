@@ -108,6 +108,15 @@ export class MagicBlockBinding implements SettlementBinding {
     return (await readPrivateBalance(this.transport, this.resolved, this.session, this.config.mint)).balance;
   }
 
+  /** The TEE RPC answers an ephemeral signature with existence and success only (spike, 31 Oct 2026), under the escrow's own token. */
+  async transferStatus(sig: Signature): Promise<"landed" | "failed" | "not_found"> {
+    const tx = parseTeeTransaction(
+      await this.transport.teeRpc(this.resolved.teeRpcUrl, "getTransaction", [sig, { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 0 }], this.session.teeToken),
+    );
+    if (tx === null) return "not_found";
+    return tx.err === null ? "landed" : "failed";
+  }
+
   async readDeposit(sig: Signature, ref: DepositRef): Promise<{ amount: bigint; buyer: Address } | null> {
     if (ref.amount <= 0n) throw new RangeError("deposit amount must be positive");
     if (this.creditedDeposits.has(sig)) return null;

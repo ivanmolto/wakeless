@@ -65,6 +65,7 @@ function countedEscrow(binding: SettlementBinding, signatures: Signature[]): Set
     escrowAddress: () => binding.escrowAddress(),
     readDeposit: (sig, ref) => binding.readDeposit(sig, ref),
     privateBalance: () => binding.privateBalance(),
+    transferStatus: (sig) => binding.transferStatus(sig),
     observe: (sig) => binding.observe(sig),
     async settle(to, amount, ref) {
       const result = await binding.settle(to, amount, ref);

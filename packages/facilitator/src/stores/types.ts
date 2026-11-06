@@ -95,7 +95,12 @@ export type NewOperation = Pick<OperationRecord, "opId" | "channelId" | "type" |
 
 export interface OperationChange {
   readonly status: OperationStatus;
-  readonly signature?: string;
+  /**
+   * The transfer's signature, once there is one. On `failed` it records a transfer that
+   * was submitted but not seen confirmed (fate unknown; `null` clears it once the fate
+   * is known and the operation may be sent again).
+   */
+  readonly signature?: string | null;
   readonly receipt?: JsonObject;
 }
 

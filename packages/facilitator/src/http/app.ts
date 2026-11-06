@@ -17,7 +17,7 @@ import {
   type SupportedResponse,
   type VerifyResponse,
 } from "@wakeless/scheme";
-import { DEFAULT_MAX_IDLE_SECS, periodOf, refundOf, type Alert, type CloseRunSummary, type RedeemRunSummary, type Redeemer } from "../redeem.js";
+import { DEFAULT_MAX_IDLE_SECS, periodOf, refundOf, type Alert, type CloseRunSummary, type OutstandingSettlement, type RedeemRunSummary, type Redeemer } from "../redeem.js";
 import { KeyedMutex } from "../stores/keyed-mutex.js";
 import type { ChannelRecord, OperationRecord, Stores } from "../stores/types.js";
 import { bearerOf, isLoopback, tokenMatches, vendorOfToken } from "./auth.js";
@@ -79,6 +79,14 @@ export interface ReceiptsResponse {
   /** The receipt signer's public key, base58, the same as `/supported` `signers`. */
   readonly signer: string;
   readonly receipts: readonly SettlementReceipt[];
+  /**
+   * What the vendor is still owed by period (`settlement_pending`, briefing §3 row 5): a
+   * redemption that failed or was not seen confirmed, with the transfer's signature in
+   * `transaction` when one was submitted. Retried by the worker, same period and amount.
+   */
+  readonly pending: readonly OutstandingSettlement[];
+  /** Redemptions the rail refused (`shielded_binding_rejected`): terminal, the amount still owed, never retried publicly. */
+  readonly rejected: readonly OutstandingSettlement[];
 }
 
 export interface AlertsResponse {
@@ -481,7 +489,7 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
     if (channel === undefined || channel.vendor !== vendor) {
       throw new HttpError(404, SCHEME_ERROR_CODES.invalidPayload, "no such channel for this vendor");
     }
-    const body: ReceiptsResponse = { channelId, signer: worker.signer, receipts: await worker.receipts(channelId) };
+    const body: ReceiptsResponse = { channelId, signer: worker.signer, receipts: await worker.receipts(channelId), ...(await worker.outstanding(channelId)) };
     answered(c, 200, { outcome: "receipts", channelId });
     return c.json(body, 200, { "cache-control": "no-store" });
   });

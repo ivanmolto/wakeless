@@ -1,4 +1,4 @@
-export { BINDING_ERROR_CODES, BindingError, isBindingError, type BindingErrorCode } from "./errors.js";
+export { BINDING_ERROR_CODES, BindingError, isBindingError, unconfirmedSignatureOf, type BindingErrorCode } from "./errors.js";
 export {
   channelId,
   clientRefId,

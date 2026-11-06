@@ -63,6 +63,7 @@ skipUnless("HELIUS_API_KEY", "deposit 2, spend 0.5, close: the remainder comes b
       escrowAddress: () => escrow.escrowAddress(),
       readDeposit: escrow.readDeposit.bind(escrow),
       privateBalance: escrow.privateBalance.bind(escrow),
+      transferStatus: escrow.transferStatus.bind(escrow),
       observe: escrow.observe.bind(escrow),
       async settle(...args: Parameters<MagicBlockBinding["settle"]>) {
         const result = await escrow.settle(...args);
