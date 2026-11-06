@@ -16,7 +16,7 @@ import { parseReceiptTokens } from "./http/auth.js";
 import type { BindingState } from "./http/binding-state.js";
 import { createFacilitatorLogger, type FacilitatorLogger } from "./http/log.js";
 import { DEFAULT_RATE_LIMITS, parseRateRule } from "./http/rate-limit.js";
-import { DEFAULT_REDEEM_INTERVAL_SECS, createRedeemer, type Redeemer } from "./redeem.js";
+import { DEFAULT_MAX_IDLE_SECS, DEFAULT_REDEEM_INTERVAL_SECS, createRedeemer, type Redeemer } from "./redeem.js";
 import { createMemoryStores } from "./stores/memory.js";
 import { createRedisStores } from "./stores/redis.js";
 
@@ -67,6 +67,14 @@ function parseRedeemInterval(text: string | undefined): number | false {
   return seconds;
 }
 
+/** `MAX_IDLE_SECS`: seconds without activity before the worker idle-closes an open channel. Default 7 days. */
+function parseMaxIdleSecs(text: string | undefined): number {
+  if (text === undefined || text.trim() === "") return DEFAULT_MAX_IDLE_SECS;
+  const seconds = Number(text);
+  if (!Number.isSafeInteger(seconds) || seconds < 1) throw new Error("MAX_IDLE_SECS must be a whole number of seconds");
+  return seconds;
+}
+
 async function bindingState(logger: FacilitatorLogger): Promise<BindingState> {
   const baseRpcUrl = required("SOLANA_RPC_URL");
   if (/mainnet/i.test(new URL(baseRpcUrl).hostname)) throw new Error("Refusing a mainnet RPC URL: the facilitator runs on devnet only");
@@ -111,19 +119,20 @@ async function main(): Promise<void> {
   const adminToken = process.env.FACILITATOR_ADMIN_TOKEN || undefined;
   if (adminToken !== undefined && adminToken.length < 16) throw new Error("FACILITATOR_ADMIN_TOKEN must be at least 16 characters");
   const redeemInterval = parseRedeemInterval(process.env.REDEEM_INTERVAL);
+  const maxIdleSecs = parseMaxIdleSecs(process.env.MAX_IDLE_SECS);
   const binding = await bindingState(logger);
   const stores = process.env.REDIS_URL ? createRedisStores(process.env.REDIS_URL) : createMemoryStores();
   const deposits = binding.status === "ready" ? createDepositHandler({ binding: binding.binding, stores, logger }) : undefined;
   let redeemer: Redeemer | undefined;
   if (binding.status === "ready") {
-    redeemer = createRedeemer({ binding: binding.binding, stores, signer, logger });
+    redeemer = createRedeemer({ binding: binding.binding, stores, signer, logger, maxIdleSecs });
     // Startup: every `pending` settle operation is reconciled against the binding before anything is sent.
     const reconciled = await redeemer.reconcile();
     logger.info({ event: "reconciled", ...reconciled }, `reconciled ${reconciled.pending} pending settle operations`);
     if (redeemInterval !== false) redeemer.start(redeemInterval * 1000);
   }
   if (adminToken === undefined) logger.warn({ event: "admin_disabled" }, "FACILITATOR_ADMIN_TOKEN is not set: /admin/* is disabled");
-  const app = createFacilitatorApp({ binding, stores, deposits, logger, rateLimits, trustProxy, redeemer, adminToken, receiptTokens, receiptSigners: [publicKeyOf(signer)] });
+  const app = createFacilitatorApp({ binding, stores, deposits, logger, rateLimits, trustProxy, redeemer, adminToken, receiptTokens, receiptSigners: [publicKeyOf(signer)], maxIdleSecs });
   const port = Number(process.env.FACILITATOR_PORT ?? 4020);
   const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
     logger.info(
@@ -137,6 +146,7 @@ async function main(): Promise<void> {
         rateLimitPerChannel: rateLimits.perChannel === false ? "off" : `${rateLimits.perChannel.limit}/${rateLimits.perChannel.windowSeconds}`,
         trustProxy,
         redeemInterval: redeemInterval === false ? "off" : redeemInterval,
+        maxIdleSecs,
         receiptSigner: publicKeyOf(signer),
         receiptVendors: receiptTokens.size,
         admin: adminToken === undefined ? "disabled" : "enabled",

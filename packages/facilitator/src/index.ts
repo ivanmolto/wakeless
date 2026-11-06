@@ -6,6 +6,7 @@ export {
   type AdminChannel,
   type AdminChannelsResponse,
   type AlertsResponse,
+  type CloseResponse,
   type FacilitatorOptions,
   type HealthResponse,
   type ReceiptsResponse,
@@ -17,14 +18,17 @@ export {
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_REDEEM_INTERVAL_SECS,
   PRODUCTION_REDEEM_INTERVAL_SECS,
+  REFUND_OP_ID,
   backoffSeconds,
   createRedeemer,
   feeOf,
   periodOf,
+  refundOf,
   settleOpId,
   settleSignatureOf,
   type Alert,
   type AlertKind,
+  type CloseRunSummary,
   type ReconcileSummary,
   type RedeemDeps,
   type RedeemRunSummary,
@@ -39,7 +43,7 @@ export { HttpError, Rejection, errorBody, isRetryable, type CorrectiveState, typ
 export { canonicalJson, payloadHash } from "./http/hash.js";
 export { parsePayload, parseRequest, parseRequirements, type FacilitatorRequest } from "./http/request.js";
 export { SettledResults, VerifiedSet, type Clock } from "./http/short-lived.js";
-export { CORRECTIVE_CODES, applyVoucher, checkDeposit, checkVoucher, correctiveOf, identify } from "./http/validate.js";
+export { CORRECTIVE_CODES, acceptsVouchers, applyClose, applyVoucher, checkClose, checkDeposit, checkVoucher, correctiveOf, identify } from "./http/validate.js";
 export { createMemoryStores, MemoryBatchOperationStore, MemoryChannelStore } from "./stores/memory.js";
 export { createRedisStores, type RedisStoresOptions } from "./stores/redis.js";
 export {

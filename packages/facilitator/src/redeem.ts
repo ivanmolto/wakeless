@@ -28,6 +28,8 @@ import type { ChannelRecord, OperationRecord, Stores } from "./stores/types.js";
  */
 
 export const DEFAULT_REDEEM_INTERVAL_SECS = 60;
+/** Seven days, as `docs/SCHEME.md` §4.4 advertises in `/supported` `extra.maxIdleSecs`. */
+export const DEFAULT_MAX_IDLE_SECS = 604_800;
 /** What a production deployment should run: one redemption per channel per hour. */
 export const PRODUCTION_REDEEM_INTERVAL_SECS = 3600;
 export const DEFAULT_MAX_ATTEMPTS = 5;
@@ -43,6 +45,8 @@ export interface RedeemDeps {
   readonly privacyFeeBps?: number;
   readonly maxAttempts?: number;
   readonly backoff?: { readonly baseSeconds: number; readonly maxSeconds: number };
+  /** An open channel with no activity for this long is idle-closed by `closeOnce()`. Default 7 days; the same value `/supported` advertises. */
+  readonly maxIdleSecs?: number;
   /** Unix seconds. */
   readonly now?: () => number;
   /** One line per event: channel id, op id, status. Never a signature or an amount. */
@@ -58,7 +62,12 @@ export type AlertKind =
   | "settle_attempts_exhausted"
   | "settle_confirmed_not_recorded"
   | "settle_reconciled_sent"
-  | "settle_reconciled_unsent";
+  | "settle_reconciled_unsent"
+  | "refund_rejected"
+  | "refund_attempts_exhausted"
+  | "refund_confirmed_not_recorded"
+  | "refund_reconciled_sent"
+  | "refund_reconciled_unsent";
 
 /** What `GET /admin/alerts` lists. Ids and codes only; never an amount or a signature. */
 export interface Alert {
@@ -67,6 +76,7 @@ export interface Alert {
   readonly kind: AlertKind;
   readonly channelId: string;
   readonly opId: string;
+  /** The settle period; `0` for a refund, which has none. */
   readonly period: number;
   readonly attempts: number;
   readonly code?: string;
@@ -91,6 +101,24 @@ export interface ReconcileSummary {
   readonly unsent: number;
 }
 
+/** Counts only (task 8.1). */
+export interface CloseRunSummary {
+  /** Open channels idle-closed this run. */
+  readonly idle: number;
+  /** Closing channels whose grace had passed: each is paid out, refunded and closed, or skipped. */
+  readonly due: number;
+  /** Final redemptions to the vendor made this run. */
+  readonly settled: number;
+  /** Refunds sent this run. */
+  readonly refunded: number;
+  /** Channels marked closed this run. */
+  readonly closed: number;
+  readonly failed: number;
+  readonly rejected: number;
+  /** Due but not finished this run: a settle or refund in flight, failed and in backoff, rejected, or exhausted. */
+  readonly skipped: number;
+}
+
 export interface Redeemer {
   /** The receipt signer's public key, base58. */
   readonly signer: string;
@@ -98,7 +126,15 @@ export interface Redeemer {
   reconcile(): Promise<ReconcileSummary>;
   /** One run. Runs are serialised; a run in progress is waited for. */
   runOnce(): Promise<RedeemRunSummary>;
-  /** Runs every `intervalMs` until `stop()`. A run that overlaps the next tick is not doubled. */
+  /**
+   * One close pass (task 8.1): idle-close every open channel with no activity for
+   * `maxIdleSecs`; then, for every closing channel past `refundAfter`, pay the vendor
+   * what is owed (the same settle path as `runOnce`, vendor first), refund
+   * `deposit − settled` to the buyer's private balance, and mark the channel closed.
+   * Serialised with `runOnce`.
+   */
+  closeOnce(): Promise<CloseRunSummary>;
+  /** Runs `runOnce` then `closeOnce` every `intervalMs` until `stop()`. A run that overlaps the next tick is not doubled. */
   start(intervalMs: number): void;
   stop(): void;
   /** Newest last. */
@@ -119,6 +155,26 @@ interface SettlePayload {
 
 export function settleOpId(period: number): string {
   return `settle:${period}`;
+}
+
+/** One refund per channel, at close. */
+export const REFUND_OP_ID = "refund:1";
+
+interface RefundPayload {
+  readonly amount: string;
+  readonly clientRef: string;
+}
+
+function refundPayloadOf(op: OperationRecord): RefundPayload {
+  const { amount, clientRef } = op.payload;
+  if (typeof amount !== "string" || typeof clientRef !== "string") {
+    throw new Error(`refund operation ${op.opId} on ${op.channelId} has a malformed payload`);
+  }
+  return { amount, clientRef };
+}
+
+function isRefund(op: OperationRecord): boolean {
+  return op.type === "refund" && op.opId === REFUND_OP_ID;
 }
 
 export function periodOf(opId: string): number | undefined {
@@ -161,6 +217,8 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
   feeOf(0n, feeBps);
   const maxAttempts = deps.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const backoff = deps.backoff ?? DEFAULT_BACKOFF;
+  const maxIdleSecs = deps.maxIdleSecs ?? DEFAULT_MAX_IDLE_SECS;
+  if (!Number.isSafeInteger(maxIdleSecs) || maxIdleSecs < 0) throw new RangeError("maxIdleSecs must be a non-negative integer");
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const signer = publicKeyOf(deps.signer);
   const runs = new KeyedMutex();
@@ -286,17 +344,158 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
     });
   }
 
+  /** The channel's lifecycle moves to `closed`, once. */
+  async function markClosed(channelId: string): Promise<void> {
+    await stores.channels.update(channelId, (current) => {
+      if (current === undefined) throw new Error(`channel ${channelId} vanished during close`);
+      return current.state === "closed" ? current : { ...current, state: "closed", lastActivityAt: now() };
+    });
+  }
+
+  /**
+   * The refund of one closing channel whose vendor is paid in full: `deposit − settled` to
+   * the buyer's private balance under the one `refund:1` operation, then `closed`. Nothing
+   * owed to the buyer closes the channel with no transfer and no operation.
+   */
+  async function refundChannel(channel: ChannelRecord): Promise<"refunded" | "closed" | "failed" | "rejected" | "skipped"> {
+    const { channelId } = channel;
+    const existing = (await stores.operations.list(channelId)).find(isRefund);
+    let op: OperationRecord;
+    let payload: RefundPayload;
+    if (existing !== undefined) {
+      if (existing.status === "confirmed") {
+        // Sent, and the process died before the record moved: finish the record.
+        await markClosed(channelId);
+        log("channel_closed", { channelId });
+        return "closed";
+      }
+      if (existing.status === "rejected" || existing.status === "pending") return "skipped";
+      const key = `${channelId}/${existing.opId}`;
+      if (existing.attempts >= maxAttempts) {
+        if (!exhausted.has(key)) {
+          exhausted.add(key);
+          alert("refund_attempts_exhausted", existing, 0);
+        }
+        return "skipped";
+      }
+      const notBefore = retryAfter.get(key);
+      if (notBefore !== undefined && now() < notBefore) return "skipped";
+      op = await stores.operations.transition(channelId, existing.opId, { status: "pending" });
+      payload = refundPayloadOf(op);
+    } else {
+      const amount = channel.deposit - channel.settled;
+      if (amount <= 0n) {
+        await markClosed(channelId);
+        log("channel_closed", { channelId });
+        return "closed";
+      }
+      payload = { amount: amount.toString(), clientRef: channel.clientRef };
+      const reserved = await stores.operations.reserve({ opId: REFUND_OP_ID, channelId, type: "refund", payload: { ...payload } });
+      if (!reserved.created) return "skipped"; // Another run got here first.
+      op = reserved.operation;
+    }
+    log("refund_pending", { channelId, opId: op.opId, attempts: op.attempts });
+
+    let result: { sig: Signature };
+    try {
+      result = await binding.refund(channel.buyer as Address, BigInt(payload.amount), { id: clientRefId(payload.clientRef) });
+    } catch (error) {
+      if (isBindingError(error, BINDING_ERROR_CODES.bindingRejected)) {
+        const rejected = await stores.operations.transition(channelId, op.opId, { status: "rejected" });
+        alert("refund_rejected", rejected, 0, { code: error.code, apiCode: error.apiCode });
+        return "rejected";
+      }
+      const failed = await stores.operations.transition(channelId, op.opId, { status: "failed" });
+      retryAfter.set(`${channelId}/${op.opId}`, now() + backoffSeconds(failed.attempts, backoff));
+      log("refund_failed", { channelId, opId: op.opId, attempts: failed.attempts, errorName: error instanceof Error ? error.name : "Error" }, "warn");
+      return "failed";
+    }
+
+    // The buyer has been refunded. Record it; if the record cannot be written the operation
+    // stays `pending` and the startup reconciliation finds the amount gone from the escrow.
+    try {
+      await stores.operations.transition(channelId, op.opId, { status: "confirmed", signature: result.sig });
+      await markClosed(channelId);
+    } catch (error) {
+      alert("refund_confirmed_not_recorded", op, 0, { code: error instanceof Error ? error.name : "Error" });
+      return "skipped";
+    }
+    retryAfter.delete(`${channelId}/${op.opId}`);
+    log("refund_confirmed", { channelId, opId: op.opId });
+    log("channel_closed", { channelId });
+    return "refunded";
+  }
+
+  async function closeOnce(): Promise<CloseRunSummary> {
+    return runs.run("run", async () => {
+      const at = now();
+      const summary = { idle: 0, due: 0, settled: 0, refunded: 0, closed: 0, failed: 0, rejected: 0, skipped: 0 };
+
+      // Idle close: no activity for maxIdleSecs. The vendor had until now to claim; no grace.
+      for (const channel of await stores.channels.list()) {
+        if (channel.state !== "open" || at - channel.lastActivityAt < maxIdleSecs) continue;
+        const after = await stores.channels.update(channel.channelId, (current) => {
+          if (current === undefined || current.state !== "open" || now() - current.lastActivityAt < maxIdleSecs) return current as ChannelRecord;
+          return { ...current, state: "closing", closingAt: now(), refundAfter: now() };
+        });
+        if (after.state === "closing" && after.closingAt === at) {
+          summary.idle++;
+          log("idle_close", { channelId: channel.channelId });
+        }
+      }
+
+      // Due: closing channels past their grace. Vendor first, then the buyer, then closed.
+      const due = (await stores.channels.list()).filter((c) => c.state === "closing" && c.refundAfter !== undefined && at >= c.refundAfter);
+      summary.due = due.length;
+      for (const channel of due) {
+        let current = channel;
+        if (current.accepted > current.settled) {
+          const outcome = await redeemChannel(current);
+          if (outcome === "confirmed") summary.settled++;
+          else if (outcome === "failed" || outcome === "rejected") {
+            summary[outcome]++;
+            continue;
+          } else {
+            summary.skipped++;
+            continue;
+          }
+          current = (await stores.channels.get(current.channelId)) ?? current;
+          if (current.accepted > current.settled) {
+            summary.skipped++;
+            continue;
+          }
+        }
+        const outcome = await refundChannel(current);
+        if (outcome === "refunded") {
+          summary.refunded++;
+          summary.closed++;
+        } else if (outcome === "closed") summary.closed++;
+        else summary[outcome]++;
+      }
+      log("close_run", summary);
+      return summary;
+    });
+  }
+
   async function reconcile(): Promise<ReconcileSummary> {
     return runs.run("run", async () => {
       const channels = await stores.channels.list();
-      const pending: { op: OperationRecord; payload: SettlePayload }[] = [];
+      // Settle operations carry a period; a refund (`refund:1`) carries none and closes the channel when it is found sent.
+      const pending: { op: OperationRecord; amount: bigint; period: number; settle?: SettlePayload }[] = [];
       let accountedOut = 0n;
       let deposits = 0n;
       for (const channel of channels) {
         deposits += channel.deposit;
         for (const op of await settleOps(channel.channelId)) {
           if (op.status === "confirmed") accountedOut += BigInt(payloadOf(op).amount);
-          else if (op.status === "pending") pending.push({ op, payload: payloadOf(op) });
+          else if (op.status === "pending") {
+            const settle = payloadOf(op);
+            pending.push({ op, amount: BigInt(settle.amount), period: settle.period, settle });
+          }
+        }
+        for (const op of (await stores.operations.list(channel.channelId)).filter(isRefund)) {
+          if (op.status === "confirmed") accountedOut += BigInt(refundPayloadOf(op).amount);
+          else if (op.status === "pending") pending.push({ op, amount: BigInt(refundPayloadOf(op).amount), period: 0 });
         }
       }
       const summary = { pending: pending.length, sent: 0, unsent: 0 };
@@ -305,19 +504,24 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
       // What the escrow should hold if no pending transfer went out, against what it holds.
       const balance = await binding.privateBalance();
       let deficit = deposits - accountedOut - balance;
-      pending.sort((a, b) => a.op.channelId.localeCompare(b.op.channelId) || a.payload.period - b.payload.period);
-      for (const { op, payload } of pending) {
-        const amount = BigInt(payload.amount);
+      pending.sort((a, b) => a.op.channelId.localeCompare(b.op.channelId) || a.period - b.period);
+      for (const { op, amount, period, settle } of pending) {
+        const refund = settle === undefined;
         if (deficit >= amount) {
           deficit -= amount;
-          await advanceSettled(op.channelId, BigInt(payload.cumulative));
-          await stores.operations.transition(op.channelId, op.opId, { status: "confirmed", receipt: { reconciled: true, period: payload.period, cumulative: payload.cumulative, amount: payload.amount } });
-          alert("settle_reconciled_sent", op, payload.period);
+          if (settle !== undefined) {
+            await advanceSettled(op.channelId, BigInt(settle.cumulative));
+            await stores.operations.transition(op.channelId, op.opId, { status: "confirmed", receipt: { reconciled: true, period: settle.period, cumulative: settle.cumulative, amount: settle.amount } });
+          } else {
+            await stores.operations.transition(op.channelId, op.opId, { status: "confirmed", receipt: { reconciled: true, amount: amount.toString() } });
+            await markClosed(op.channelId);
+          }
+          alert(refund ? "refund_reconciled_sent" : "settle_reconciled_sent", op, period);
           summary.sent++;
         } else {
           const failed = await stores.operations.transition(op.channelId, op.opId, { status: "failed" });
           retryAfter.set(`${op.channelId}/${op.opId}`, now() + backoffSeconds(failed.attempts, backoff));
-          alert("settle_reconciled_unsent", failed, payload.period);
+          alert(refund ? "refund_reconciled_unsent" : "settle_reconciled_unsent", failed, period);
           summary.unsent++;
         }
       }
@@ -330,6 +534,7 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
     signer,
     reconcile,
     runOnce,
+    closeOnce,
     start(intervalMs) {
       if (timer !== undefined) return;
       const set = deps.setInterval ?? ((fn, ms) => setInterval(fn, ms));
@@ -337,6 +542,7 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
         if (running) return;
         running = true;
         void runOnce()
+          .then(() => closeOnce())
           .catch((error: unknown) => log("redeem_run_error", { errorName: error instanceof Error ? error.name : "Error" }, "error"))
           .finally(() => {
             running = false;
@@ -371,4 +577,11 @@ export function createRedeemer(deps: RedeemDeps): Redeemer {
 /** The signature the binding reported for a confirmed settle operation, when one was. */
 export function settleSignatureOf(op: OperationRecord): Signature | undefined {
   return op.status === "confirmed" && op.signature !== undefined ? (op.signature as Signature) : undefined;
+}
+
+/** The channel's confirmed refund, when it has been sent: amount and the private transfer's signature (none after a reconciliation). */
+export function refundOf(ops: readonly OperationRecord[]): { amount: string; signature: string | null } | undefined {
+  const op = ops.find((o) => isRefund(o) && o.status === "confirmed");
+  if (op === undefined) return undefined;
+  return { amount: refundPayloadOf(op).amount, signature: op.signature ?? null };
 }

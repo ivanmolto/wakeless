@@ -29,6 +29,14 @@ export interface ChannelRecord {
   readonly state: ChannelLifecycle;
   /** Unix seconds. */
   readonly lastActivityAt: number;
+  /** Unix seconds; set when the channel left `open` (the buyer's close request, or the idle close). */
+  readonly closingAt?: number;
+  /**
+   * Unix seconds; the vendor's latest voucher is accepted while `now < refundAfter`
+   * (`closingAt + withdrawDelay` for a buyer's close; `closingAt` for an idle close),
+   * and the worker pays the vendor and refunds the buyer once it has passed.
+   */
+  readonly refundAfter?: number;
 }
 
 /**

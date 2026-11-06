@@ -4,11 +4,13 @@ import {
   clientRefOf,
   deriveChannelId,
   nextWatermark,
+  verifyCloseRequest,
   verifyVoucher,
   type BatchVoucher,
   type ChannelConfig,
   type DepositPayload,
   type PaymentRequirements,
+  type RefundPayload,
   type VoucherPayload,
 } from "@wakeless/scheme";
 import type { ChannelRecord, ChannelStore } from "../stores/types.js";
@@ -80,12 +82,65 @@ export function applyVoucher(
   if (current.buyer !== buyer || current.vendor !== config.vendor || current.mint !== config.mint) {
     return new Rejection(SCHEME_ERROR_CODES.channelState, "channelConfig does not match the channel record", buyer);
   }
-  if (current.state !== "open") {
+  if (!acceptsVouchers(current, now)) {
     return new Rejection(SCHEME_ERROR_CODES.channelClosing, `channel is ${current.state}; no new vouchers`, buyer);
   }
   const next = nextWatermark(current.accepted, voucher, BigInt(requirements.amount), current.deposit);
   if (!next.ok) return new Rejection(next.code, "voucher.maxClaimableAmount is not acceptable against the channel's watermark", buyer);
   return { ...current, accepted: next.watermark, latestVoucher: voucher, lastActivityAt: now };
+}
+
+/**
+ * The grace rule (task 8.1): an open channel accepts vouchers; a closing one accepts the
+ * vendor's latest voucher until `refundAfter` (`withdrawDelay` seconds after the buyer's
+ * close request); a closed channel, or a closing one past its grace, accepts none.
+ */
+export function acceptsVouchers(record: ChannelRecord, now: number): boolean {
+  if (record.state === "open") return true;
+  if (record.state === "closing") return record.refundAfter !== undefined && now < record.refundAfter;
+  return false;
+}
+
+/**
+ * The next record after the buyer's close request (`refund` payload), or the rejection.
+ * Pure. An open channel moves to `closing` with `refundAfter = now + withdrawDelay`; the
+ * buyer's latest voucher moves the watermark when it is above it (that only ever favours
+ * the vendor), and is otherwise ignored, since the vendor has usually presented it
+ * already. A closing or closed channel is returned as it is: the request is idempotent.
+ */
+export function applyClose(current: ChannelRecord | undefined, payload: RefundPayload, requirements: PaymentRequirements, now: number): ChannelRecord | Rejection {
+  const { buyer } = payload.channelConfig;
+  if (current === undefined) {
+    return new Rejection(SCHEME_ERROR_CODES.channelState, "unknown channel: nothing to close", buyer);
+  }
+  if (current.buyer !== buyer || current.vendor !== payload.channelConfig.vendor || current.mint !== payload.channelConfig.mint) {
+    return new Rejection(SCHEME_ERROR_CODES.channelState, "channelConfig does not match the channel record", buyer);
+  }
+  if (current.state !== "open") return current;
+  const next = nextWatermark(current.accepted, payload.voucher, BigInt(requirements.amount), current.deposit);
+  const advanced = next.ok ? { accepted: next.watermark, latestVoucher: payload.voucher } : {};
+  return { ...current, ...advanced, state: "closing", lastActivityAt: now, closingAt: now, refundAfter: now + requirements.extra.withdrawDelay };
+}
+
+export interface CloseVerdict extends ChannelIdentity {
+  readonly before: ChannelRecord;
+  readonly after: ChannelRecord;
+}
+
+/**
+ * A `refund` payload checked against a read: the channel id derives, the voucher and the
+ * close signature are the buyer's, and the record admits the close. Writes nothing.
+ */
+export async function checkClose(payload: RefundPayload, requirements: PaymentRequirements, channels: ChannelStore, now: number): Promise<CloseVerdict | Rejection> {
+  const identity = identify(payload.channelConfig, payload.voucher, requirements);
+  if (identity instanceof Rejection) return identity;
+  if (!verifyCloseRequest(identity.buyer, payload.voucher, payload.closeSignature)) {
+    return new Rejection(SCHEME_ERROR_CODES.closeAuthorization, "closeSignature is not the buyer's signature over the close message", identity.buyer);
+  }
+  const before = await channels.get(identity.channelId);
+  const after = applyClose(before, payload, requirements, now);
+  if (after instanceof Rejection) return after;
+  return { ...identity, before: before as ChannelRecord, after };
 }
 
 export interface VoucherVerdict extends ChannelIdentity {

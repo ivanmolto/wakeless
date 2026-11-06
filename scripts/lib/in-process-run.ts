@@ -14,7 +14,7 @@ import { address, createKeyPairFromBytes, type Signature } from "@solana/kit";
 import { DEVNET_CAIP2, type BuyerBinding, type ObserverView, type SettlementBinding } from "@wakeless/binding";
 import { MagicBlockBinding, MagicBlockBuyer } from "@wakeless/binding-magicblock";
 import { wrapFetchWithWakeless } from "@wakeless/client";
-import { createDepositHandler, createFacilitatorApp, createMemoryStores, createRedeemer, type RedeemRunSummary, type Stores } from "@wakeless/facilitator";
+import { createDepositHandler, createFacilitatorApp, createMemoryStores, createRedeemer, type CloseRunSummary, type RedeemRunSummary, type Stores } from "@wakeless/facilitator";
 import { publicKeyOf } from "@wakeless/scheme";
 import { VENDORS, startVendors, type RunningVendors } from "@wakeless/vendors";
 import { assertDevnetRpcUrl } from "./devnet.js";
@@ -97,6 +97,8 @@ export interface InProcessRun {
   readonly receiptTokens: Readonly<Record<string, string>>;
   /** One redemption run through the worker: one private transfer per channel owed. The worker runs on no timer here. */
   redeem(): Promise<RedeemRunSummary>;
+  /** One close pass of the worker (task 8.1): idle closes, then due closes (vendor paid, buyer refunded, closed). `pay.close(channelId)` requests a close. */
+  closeRun(): Promise<CloseRunSummary>;
   /** Grows as the run emits: every deposit, settle and refund, in order. */
   readonly signatures: readonly Signature[];
   readonly channelStoreLocal: string;
@@ -173,7 +175,7 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const channelStoreLocal = resolve(homedir(), ".wakeless", `${label}-${stamp}.json`);
     const clientLog: string[] = [];
-    const pay = wrapFetchWithWakeless(fetch, { buyerKeypair, rail: countedBuyer(buyerRail, signatures), channelStoreLocal, log: (line) => clientLog.push(line) });
+    const pay = wrapFetchWithWakeless(fetch, { buyerKeypair, rail: countedBuyer(buyerRail, signatures), channelStoreLocal, facilitatorUrl: facilitator.url, log: (line) => clientLog.push(line) });
 
     return {
       vendors,
@@ -184,6 +186,7 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
       adminToken,
       receiptTokens,
       redeem: () => redeemer.runOnce(),
+      closeRun: () => redeemer.closeOnce(),
       signatures,
       channelStoreLocal,
       balanceBefore,

@@ -9,6 +9,7 @@ import {
   isChannelId,
   isSchemeErrorCode,
   type ChannelState,
+  type CloseState,
   type SchemeErrorCode,
   type SettlementReceipt,
   type SettlementResponse,
@@ -16,7 +17,7 @@ import {
   type SupportedResponse,
   type VerifyResponse,
 } from "@wakeless/scheme";
-import { periodOf, type Alert, type RedeemRunSummary, type Redeemer } from "../redeem.js";
+import { DEFAULT_MAX_IDLE_SECS, periodOf, refundOf, type Alert, type CloseRunSummary, type RedeemRunSummary, type Redeemer } from "../redeem.js";
 import { KeyedMutex } from "../stores/keyed-mutex.js";
 import type { ChannelRecord, OperationRecord, Stores } from "../stores/types.js";
 import { bearerOf, isLoopback, tokenMatches, vendorOfToken } from "./auth.js";
@@ -27,11 +28,10 @@ import { createFacilitatorLogger, type FacilitatorLogger } from "./log.js";
 import { DEFAULT_RATE_LIMITS, RateLimiter, type RateLimits } from "./rate-limit.js";
 import { parsePayload, parseRequest, type FacilitatorRequest } from "./request.js";
 import { SettledResults, VerifiedSet, type Clock } from "./short-lived.js";
-import { applyVoucher, checkDeposit, checkVoucher } from "./validate.js";
+import { applyClose, applyVoucher, checkClose, checkDeposit, checkVoucher } from "./validate.js";
 
 export const DEFAULT_PRIVACY_FEE_BPS = 10;
-/** Seven days, as `docs/SCHEME.md` §4.4 advertises. */
-export const DEFAULT_MAX_IDLE_SECS = 604_800;
+export { DEFAULT_MAX_IDLE_SECS };
 /** How long a settled result answers replays. */
 export const DEFAULT_SETTLED_TTL_SECS = 86_400;
 
@@ -39,6 +39,7 @@ export interface FacilitatorOptions {
   readonly binding: BindingState;
   readonly stores: Stores;
   readonly privacyFeeBps?: number;
+  /** Advertised in `/supported`; the worker (`createRedeemer`) is given the same value to idle-close by. */
   readonly maxIdleSecs?: number;
   /** `signers["solana:*"]`: the facilitator's receipt signer, once there is one. */
   readonly receiptSigners?: readonly string[];
@@ -85,6 +86,7 @@ export interface AlertsResponse {
 }
 
 export type RedeemResponse = RedeemRunSummary;
+export type CloseResponse = CloseRunSummary;
 
 /**
  * One channel as `GET /admin/channels` lists it (task 7.3): what a vendor's receipt reader
@@ -157,8 +159,8 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
 
   interface Answered {
     readonly code?: SchemeErrorCode;
-    /** `valid`, `settled`, `replayed`, `receipts`, `redeemed`, `alerts`, `channels`; a verdict's code stands in its place. */
-    readonly outcome?: "valid" | "settled" | "replayed" | "receipts" | "redeemed" | "alerts" | "channels";
+    /** `valid`, `settled`, `replayed`, `closing`, `closed`, `receipts`, `redeemed`, `alerts`, `channels`; a verdict's code stands in its place. */
+    readonly outcome?: "valid" | "settled" | "replayed" | "closing" | "closed" | "receipts" | "redeemed" | "alerts" | "channels";
     readonly hash?: string;
     readonly channelId?: string;
     readonly binding?: BindingState["status"];
@@ -312,6 +314,15 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
       return c.json(body, 200);
     }
 
+    if (payload.type === "refund") {
+      // A close request checked against a read: it authorizes no payment and marks nothing verified.
+      const verdict = await checkClose(payload, requirements, stores.channels, now());
+      if (verdict instanceof Rejection) return invalid(verdict);
+      const body: VerifyResponse = { isValid: true, payer: verdict.buyer, extra: stateOf(verdict.before) };
+      answered(c, 200, { outcome: "valid", hash, channelId: verdict.channelId });
+      return c.json(body, 200);
+    }
+
     const verdict = await checkDeposit(payload, requirements, stores.channels);
     if (verdict instanceof Rejection) return invalid(verdict);
     verified.mark(hash, requirements.maxTimeoutSeconds);
@@ -391,6 +402,39 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
         return c.json(response, 200);
       }
 
+      if (payload.type === "refund") {
+        // The buyer's close (task 8.1). Not kept in the settled results: the same request on a
+        // closing or closed channel answers where the close stands now, and changes nothing.
+        const identity = await checkClose(payload, requirements, stores.channels, now());
+        if (identity instanceof Rejection) return failed(identity);
+        let after: ChannelRecord;
+        try {
+          after = await stores.channels.update(identity.channelId, (current) => {
+            const next = applyClose(current, payload, requirements, now());
+            if (next instanceof Rejection) throw next;
+            return next;
+          });
+        } catch (error) {
+          if (error instanceof Rejection) return failed(error);
+          throw error;
+        }
+        const closeState = closeStateOf(after, await stores.operations.list(identity.channelId));
+        const response: SettlementResponse = {
+          success: true,
+          transaction: "",
+          network,
+          payer: identity.buyer,
+          extra: {
+            commitmentId: `${identity.channelId}:${after.accepted.toString()}`,
+            chargedAmount: "0",
+            channelState: { ...stateOf(after), chargedCumulativeAmount: after.accepted.toString() },
+            closeState,
+          },
+        };
+        answered(c, 200, { outcome: closeState.state, hash, channelId: identity.channelId });
+        return c.json(response, 200);
+      }
+
       if (options.deposits === undefined) {
         throw new HttpError(500, SCHEME_ERROR_CODES.unexpectedSettleError, "this facilitator has no deposit handler");
       }
@@ -458,6 +502,13 @@ export function createFacilitatorApp(options: FacilitatorOptions): Hono {
     return c.json(body, 200, { "cache-control": "no-store" });
   });
 
+  /** `POST /admin/close`: one close pass of the worker (idle closes, then due closes: vendor, buyer, closed). */
+  app.post("/admin/close", async (c) => {
+    const body: CloseResponse = await redeemer().closeOnce();
+    answered(c, 200, { outcome: "closed" });
+    return c.json(body, 200, { "cache-control": "no-store" });
+  });
+
   /** `GET /admin/channels[?vendor=<base58>]`: every channel, or one vendor's, by channel id. */
   app.get("/admin/channels", async (c) => {
     const vendor = c.req.query("vendor");
@@ -515,7 +566,22 @@ function stateOf(record: ChannelRecord): ChannelState {
     channelId: record.channelId,
     balance: record.deposit.toString(),
     totalClaimed: record.settled.toString(),
-    withdrawRequestedAt: null,
+    withdrawRequestedAt: record.closingAt ?? null,
+  };
+}
+
+/** Where a closing or closed channel's close stands, from the record and its refund operation. */
+function closeStateOf(record: ChannelRecord, ops: readonly OperationRecord[]): CloseState {
+  if (record.state === "open" || record.closingAt === undefined || record.refundAfter === undefined) {
+    throw new Error(`channel ${record.channelId} is not closing`);
+  }
+  return {
+    state: record.state,
+    requestedAt: record.closingAt,
+    refundAfter: record.refundAfter,
+    deposit: record.deposit.toString(),
+    settled: record.settled.toString(),
+    refund: refundOf(ops) ?? null,
   };
 }
 

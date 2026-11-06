@@ -93,6 +93,8 @@ function readChannel(code: StoreErrorCode, wire: unknown): ChannelRecord {
     latestVoucher,
     state: read.check("state", (value): value is ChannelLifecycle => isOneOf(CHANNEL_STATES, value)),
     lastActivityAt: read.check("lastActivityAt", isCount),
+    ...(wire.closingAt !== undefined ? { closingAt: read.check("closingAt", isCount) } : {}),
+    ...(wire.refundAfter !== undefined ? { refundAfter: read.check("refundAfter", isCount) } : {}),
   };
 }
 
@@ -147,6 +149,8 @@ export function encodeChannel(channelId: string, record: ChannelRecord): string 
     latestVoucher: record.latestVoucher,
     state: record.state,
     lastActivityAt: record.lastActivityAt,
+    ...(record.closingAt !== undefined ? { closingAt: record.closingAt } : {}),
+    ...(record.refundAfter !== undefined ? { refundAfter: record.refundAfter } : {}),
   };
   readChannel("invalid_record", wire);
   return stringify("channel", wire);

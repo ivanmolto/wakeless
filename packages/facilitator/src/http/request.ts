@@ -6,6 +6,7 @@ import {
   X402_VERSION,
   decodeBase58Exact,
   parseBatchVoucher,
+  parseCloseSignature,
   parseU64,
   type PaymentPayload,
   type PaymentRequirements,
@@ -139,8 +140,8 @@ export function parseRequirements(input: unknown, expected: ExpectedRequirements
  */
 export function parsePayload(input: unknown, requirements: PaymentRequirements): ShieldedPayload | Rejection {
   if (!isObject(input)) return new Rejection(SCHEME_ERROR_CODES.invalidPayload, "payload must be an object");
-  if (input.type !== "deposit" && input.type !== "voucher") {
-    return new Rejection(SCHEME_ERROR_CODES.payloadType, "payload.type must be deposit or voucher");
+  if (input.type !== "deposit" && input.type !== "voucher" && input.type !== "refund") {
+    return new Rejection(SCHEME_ERROR_CODES.payloadType, "payload.type must be deposit, voucher or refund");
   }
   const config = input.channelConfig;
   if (!isObject(config)) return new Rejection(SCHEME_ERROR_CODES.invalidPayload, "payload.channelConfig must be an object");
@@ -161,6 +162,11 @@ export function parsePayload(input: unknown, requirements: PaymentRequirements):
 
   const channelConfig = { buyer, vendor: config.vendor, mint: config.mint, salt: config.salt as string, withdrawDelay: config.withdrawDelay };
   if (input.type === "voucher") return { type: "voucher", channelConfig, voucher: voucher.value };
+  if (input.type === "refund") {
+    const closeSignature = parseCloseSignature(input.closeSignature);
+    if (!closeSignature.ok) return reject(closeSignature.code, closeSignature.message);
+    return { type: "refund", channelConfig, voucher: voucher.value, closeSignature: closeSignature.value };
+  }
 
   if (decodeBase58Exact(input.depositSignature, 64) === null) {
     return reject(SCHEME_ERROR_CODES.invalidPayload, "depositSignature must be a 64-byte base58 signature");
