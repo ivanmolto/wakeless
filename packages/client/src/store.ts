@@ -6,7 +6,9 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import type { PaymentRequirements } from "@wakeless/scheme";
 import { CLIENT_ERROR_CODES, WakelessClientError } from "./errors.js";
+import { parseShieldedAccept } from "./parse.js";
 
 export const STORE_VERSION = 1;
 
@@ -18,6 +20,21 @@ export interface PendingDeposit {
   readonly signature: string;
   /** The client-signed transfer, base64 wire format (`DepositPayload.deposit.transaction`). */
   readonly transaction: string;
+}
+
+/** The note the owner's view carries beside a withdrawal offer or a performed withdrawal (task 8.1). */
+export const WITHDRAW_NOTE = "withdrawal is a public base-layer transaction: it names the buyer and the vault, and its amount is in clear";
+
+/** Where a channel's close stands, as the facilitator last reported it (task 8.1). ISO 8601 times. */
+export interface LocalChannelClose {
+  readonly state: "closing" | "closed";
+  readonly requestedAt: string;
+  /** The vendor's latest voucher is accepted until then; the refund follows. */
+  readonly refundAfter: string;
+  /** The refund once confirmed: `deposit − settled`, and the private transfer's signature (null when the facilitator reconciled it without one). */
+  readonly refund?: { readonly amount: string; readonly signature: string | null; readonly confirmedAt: string };
+  /** The withdrawal to the buyer's base token account: offered after the refund, performed only when the owner says so. */
+  readonly withdraw?: { readonly note: typeof WITHDRAW_NOTE; readonly offeredAt: string; readonly performed?: { readonly amount: string; readonly signature: string; readonly at: string } };
 }
 
 export interface LocalChannel {
@@ -37,6 +54,9 @@ export interface LocalChannel {
   /** ISO 8601. */
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** The shielded accept this channel last paid under, kept so the buyer can close without a fresh 402. */
+  readonly accept?: PaymentRequirements;
+  readonly close?: LocalChannelClose;
 }
 
 /** One paid request, as `getTrajectory()` returns it. `amount` is the price the vendor nets; `cumulative` includes the fee shares. */
@@ -69,8 +89,13 @@ export function defaultStorePath(): string {
   return join(homedir(), ".wakeless", "channels.json");
 }
 
-function channelKey(buyer: string, vendor: string, mint: string): string {
-  return `${buyer}:${vendor}:${mint}`;
+/** Records are keyed by channel id (a closed channel stays beside the one that replaced it); files written before task 8.1 keyed them `buyer:vendor:mint`, and both read alike. */
+function channelKey(channel: LocalChannel): string {
+  return channel.channelId;
+}
+
+function sameChannel(a: LocalChannel, b: LocalChannel): boolean {
+  return a.channelId === b.channelId;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -88,6 +113,23 @@ function isChannel(value: unknown): value is LocalChannel {
   const pending = value.pendingDeposit;
   if (pending !== undefined) {
     if (!isObject(pending) || typeof pending.amount !== "string" || !U64.test(pending.amount) || typeof pending.signature !== "string" || typeof pending.transaction !== "string") return false;
+  }
+  if (value.accept !== undefined && parseShieldedAccept(value.accept) === undefined) return false;
+  if (value.close !== undefined && !isClose(value.close)) return false;
+  return true;
+}
+
+function isClose(value: unknown): value is LocalChannelClose {
+  if (!isObject(value) || (value.state !== "closing" && value.state !== "closed") || typeof value.requestedAt !== "string" || typeof value.refundAfter !== "string") return false;
+  const refund = value.refund;
+  if (refund !== undefined) {
+    if (!isObject(refund) || typeof refund.amount !== "string" || !U64.test(refund.amount) || (refund.signature !== null && typeof refund.signature !== "string") || typeof refund.confirmedAt !== "string") return false;
+  }
+  const withdraw = value.withdraw;
+  if (withdraw !== undefined) {
+    if (!isObject(withdraw) || withdraw.note !== WITHDRAW_NOTE || typeof withdraw.offeredAt !== "string") return false;
+    const performed = withdraw.performed;
+    if (performed !== undefined && (!isObject(performed) || typeof performed.amount !== "string" || !U64.test(performed.amount) || typeof performed.signature !== "string" || typeof performed.at !== "string")) return false;
   }
   return true;
 }
@@ -139,19 +181,27 @@ function write(path: string, file: StoreFile): void {
 export class LocalChannelStore {
   constructor(readonly path: string = defaultStorePath()) {}
 
+  /** The channel to pay `vendor` with: the one not closing or closed, if any. */
   get(buyer: string, vendor: string, mint: string): LocalChannel | undefined {
-    return read(this.path).channels[channelKey(buyer, vendor, mint)];
+    return Object.values(read(this.path).channels).find((c) => c.buyer === buyer && c.vendor === vendor && c.mint === mint && c.close === undefined);
   }
 
   put(channel: LocalChannel): void {
     const file = read(this.path);
-    file.channels[channelKey(channel.buyer, channel.vendor, channel.mint)] = channel;
+    // Replace the record under whichever key it was written (an older file keyed by buyer:vendor:mint), else add it under its id.
+    const existing = Object.entries(file.channels).find(([, c]) => sameChannel(c, channel));
+    file.channels[existing === undefined ? channelKey(channel) : existing[0]] = channel;
     write(this.path, file);
   }
 
   /** The channels this buyer holds. */
   channels(buyer: string): readonly LocalChannel[] {
     return Object.values(read(this.path).channels).filter((c) => c.buyer === buyer);
+  }
+
+  /** One of this buyer's channels by id, open, closing or closed. */
+  byId(buyer: string, channelId: string): LocalChannel | undefined {
+    return this.channels(buyer).find((c) => c.channelId === channelId);
   }
 
   appendTrajectory(entry: TrajectoryEntry): void {

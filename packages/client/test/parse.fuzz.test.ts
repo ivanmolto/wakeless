@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { DEVNET_CAIP2, SCHEME_ID, encodeBase58, type PaymentRequirements } from "@wakeless/scheme";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { encodeHeader, parsePaymentRequired, parsePaymentResponse, parseShieldedAccept } from "../src/parse.js";
+import { encodeHeader, parseCloseResponse, parseCloseState, parsePaymentRequired, parsePaymentResponse, parseShieldedAccept } from "../src/parse.js";
 
 const address = () => encodeBase58(randomBytes(32));
 
@@ -38,9 +38,19 @@ describe("402 header parsers", () => {
     fc.assert(
       fc.property(fc.anything(), (entry) => {
         expect(() => parseShieldedAccept(entry)).not.toThrow();
+        expect(() => parseCloseState(entry)).not.toThrow();
+        const close = parseCloseResponse(entry);
+        if (close !== undefined) expect(typeof close.success).toBe("boolean");
       }),
       { numRuns: 300 },
     );
+    // A well-formed close state round-trips; a corrupted field drops it.
+    const state = { state: "closed", requestedAt: 1, refundAfter: 901, deposit: "2000000", settled: "500500", refund: { amount: "1499500", signature: null } };
+    expect(parseCloseState(state)).toEqual(state);
+    expect(parseCloseResponse({ success: true, extra: { closeState: state } })?.closeState).toEqual(state);
+    for (const bad of [{ ...state, state: "open" }, { ...state, requestedAt: -1 }, { ...state, deposit: "x" }, { ...state, refund: { amount: "1" } }, { ...state, refund: { amount: "1", signature: "short" } }]) {
+      expect(parseCloseState(bad)).toBeUndefined();
+    }
   });
 
   it("a well-formed 402 round-trips and keeps each entry as the object it came as", () => {

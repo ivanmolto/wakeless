@@ -12,6 +12,7 @@ import {
   parseU64,
   SCHEME_ERROR_CODES,
   type ChannelState,
+  type CloseState,
   type PaymentPayload,
   type PaymentRequirements,
   type VoucherState,
@@ -129,6 +130,40 @@ export interface ParsedPaymentResponse {
   readonly success: boolean;
   readonly errorReason?: string;
   readonly channelState?: ChannelState;
+  /** On the answer to a close request (task 8.1). */
+  readonly closeState?: CloseState;
+}
+
+/** `extra.closeState` of the facilitator's answer to a `refund` payload. Never throws. */
+export function parseCloseState(value: unknown): CloseState | undefined {
+  if (!isObject(value) || (value.state !== "closing" && value.state !== "closed")) return undefined;
+  const { requestedAt, refundAfter, deposit, settled, refund } = value;
+  if (!isCount(requestedAt) || !isCount(refundAfter) || !isU64String(deposit) || !isU64String(settled)) return undefined;
+  if (refund !== null) {
+    if (!isObject(refund) || !isU64String(refund.amount) || (refund.signature !== null && !(typeof refund.signature === "string" && decodeBase58Exact(refund.signature, 64) !== null))) return undefined;
+  }
+  return {
+    state: value.state,
+    requestedAt,
+    refundAfter,
+    deposit,
+    settled,
+    refund: refund === null ? null : { amount: (refund as { amount: string }).amount, signature: (refund as { signature: string | null }).signature },
+  };
+}
+
+/** The facilitator's own answer to a `refund` payload sent to `/settle` (JSON body, not a header). Never throws. */
+export function parseCloseResponse(body: unknown): ParsedPaymentResponse | undefined {
+  if (!isObject(body) || typeof body.success !== "boolean") return undefined;
+  const extra = isObject(body.extra) ? body.extra : undefined;
+  const channelState = extra === undefined ? undefined : parseChannelState(extra.channelState);
+  const closeState = extra === undefined ? undefined : parseCloseState(extra.closeState);
+  return {
+    success: body.success,
+    ...(typeof body.errorReason === "string" ? { errorReason: body.errorReason } : {}),
+    ...(channelState === undefined ? {} : { channelState }),
+    ...(closeState === undefined ? {} : { closeState }),
+  };
 }
 
 /**

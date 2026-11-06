@@ -18,6 +18,7 @@ import {
   type VoucherKeypair,
   type VoucherState,
 } from "@wakeless/scheme";
+import { closeChannel, type CloseOutcome } from "./close.js";
 import { deposit } from "./deposit.js";
 import { WakelessClientError } from "./errors.js";
 import { chargeOf } from "./fee.js";
@@ -50,6 +51,8 @@ export interface WakelessOptions extends MagicBlockRailOptions {
   readonly rail?: BuyerBinding | (() => Promise<BuyerBinding>);
   /** Path of the local channel file. Default `~/.wakeless/channels.json`, mode 0600. */
   readonly channelStoreLocal?: string;
+  /** The facilitator's base URL, for `close()`: a close request goes to the facilitator, not through a vendor. */
+  readonly facilitatorUrl?: string;
   /** Opening deposit when the accept names no `extra.minDeposit`. Default: 100 times the route's price. */
   readonly defaultDeposit?: bigint;
   /** Recorded on each trajectory entry, for channels funded through Aurora (`wakeless fund`). */
@@ -90,6 +93,14 @@ export interface WakelessFetch {
   getChannels(): readonly LocalChannel[];
   /** The buyer's public key, base58: `channelConfig.buyer`. */
   readonly buyer: string;
+  /**
+   * Asks the facilitator (`facilitatorUrl`) to close a channel: the channel moves to
+   * closing, the vendor may still present its latest voucher for `withdrawDelay` seconds,
+   * then the vendor is paid and `deposit − settled` is refunded to the buyer's private
+   * balance. Calling again polls. Once the refund is confirmed the outcome carries a
+   * `withdraw` offer that nothing performs but its own `perform()` (task 8.1).
+   */
+  close(channelId: string): Promise<CloseOutcome>;
 }
 
 function randomSalt(): string {
@@ -190,6 +201,11 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
       log(`escrow changed for channel ${channel.channelId}; opening a new channel`);
       channel = undefined;
     }
+    if (channel?.close !== undefined) {
+      // A closing or closed channel takes no more vouchers; paying this vendor again means a new channel.
+      log(`channel ${channel.channelId} is ${channel.close.state}; opening a new channel`);
+      channel = undefined;
+    }
     let accepted = channel === undefined ? 0n : BigInt(channel.accepted);
     let balance = channel === undefined ? 0n : BigInt(channel.deposit);
     let echo: PaymentRequirements = accept;
@@ -259,7 +275,11 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
         const confirmedBalance = state === undefined ? balance + (depositAmount ?? 0n) : BigInt(state.balance);
         const { pendingDeposit: _settled, ...rest } = channel;
         void _settled;
-        channel = { ...rest, deposit: confirmedBalance.toString(), accepted: confirmedAccepted.toString(), updatedAt: now().toISOString() };
+        // The accept is kept as it came (less a corrective entry's snapshot fields), so a later close can echo it.
+        const { channelState: _cs, voucherState: _vs, ...extra } = accept.extra;
+        void _cs;
+        void _vs;
+        channel = { ...rest, deposit: confirmedBalance.toString(), accepted: confirmedAccepted.toString(), updatedAt: now().toISOString(), accept: { ...accept, extra } };
         store.put(channel);
         store.appendTrajectory({
           vendor: accept.payTo,
@@ -327,5 +347,6 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
     getTrajectory: () => store.trajectory(),
     getChannels: () => store.channels(buyerAddress),
     buyer: buyerAddress,
+    close: (channelId: string) => mutex.run(`close:${channelId}`, () => closeChannel({ fetchImpl, facilitatorUrl: options.facilitatorUrl, buyer, buyerAddress, store, rail, now, log }, channelId)),
   });
 }

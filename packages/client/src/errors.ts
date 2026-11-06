@@ -19,4 +19,10 @@ export const CLIENT_ERROR_CODES = {
   storeUnreadable: "shielded_client_store_unreadable",
   /** No rail was given and the MagicBlock connection details are incomplete. */
   railUnconfigured: "shielded_client_rail_unconfigured",
+  /** `close()` needs `facilitatorUrl`, and a channel this buyer holds with the accept it paid under. */
+  closeUnconfigured: "shielded_client_close_unconfigured",
+  /** The facilitator refused the close request, or answered something the client cannot read; the code it gave is in the message. */
+  closeRefused: "shielded_client_close_refused",
+  /** The rail has no withdrawal, or there is no confirmed refund to withdraw. */
+  withdrawUnavailable: "shielded_client_withdraw_unavailable",
 } as const;
