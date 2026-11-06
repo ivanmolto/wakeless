@@ -13,6 +13,7 @@ interface SettlementBinding {
   settle(to: Address, amount: bigint, ref: SettleRef): Promise<{ sig: Signature; receipt: Receipt }>;
   refund(to: Address, amount: bigint, ref: ClientRef): Promise<{ sig: Signature }>;
   privateBalance(): Promise<bigint>;
+  transferStatus(sig: Signature): Promise<"landed" | "failed" | "not_found">;
   observe(sig: Signature): Promise<ObserverView>;
 }
 ```
@@ -69,3 +70,5 @@ interface PayeeBinding {
 | `shielded_binding_rejected` | The private transfer was refused: `UNSUPPORTED_TRANSFER_ROUTE`, an ingress (screening) rejection, or a build that would route onto the public base layer. The amount stays owed | never, and never as a public transfer |
 
 A binding that cannot complete a call privately throws; none falls back to a public transfer.
+
+A third outcome has no code of its own: a transfer the binding submitted and did not see confirmed. The binding throws an error carrying the transfer's `signature` (the MagicBlock binding's `UnconfirmedTransferError`); `unconfirmedSignatureOf(error)` reads it from any thrown value by shape, a 64-byte base58 `signature`, so no caller has to import a binding. The caller keeps the amount owed and the signature, reports it as `settlement_pending`, and never resends on that signature alone: it asks the rail first through `transferStatus(sig)`, which answers `landed`, `failed` or `not_found` for a transfer the escrow submitted, under the escrow's own login, with existence and success only, never the amount or the recipient. `not_found` proves nothing either way, and the facilitator's worker then settles the fate against the escrow's private balance (`packages/facilitator/README.md`, Redemption).

@@ -36,6 +36,7 @@ const binding = await MagicBlockBinding.create({
 | `settle(to, amount, ref)` | `POST /v1/spl/transfer` (private, ephemeral → ephemeral, `clientRefId` = period); TEE `sendTransaction`, `getTransaction` | `minDelayMs`/`maxDelayMs` are two points drawn inside the configured window (default 30 s to 5 min); `split` is 1 under 2 USDC, one per whole USDC above, capped at 5. On the ephemeral → ephemeral route these shape nothing today (the transfer executes at once); they are sent so the queued route, when it applies, is shaped. Returns the `Receipt` |
 | `refund(to, amount, ref)` | Same private transfer, no shaping | Deposit minus settled, back to the buyer's private balance |
 | `privateBalance()` | `GET /v1/spl/private-balance` | Base units as `bigint` |
+| `transferStatus(sig)` | TEE `getTransaction` with the escrow's own token | `landed`, `failed` or `not_found`: existence and success only, as the TEE answers an ephemeral signature (spike). What the facilitator's worker asks before it resends a transfer it did not see confirmed |
 | `observe(sig)` | Base RPC `getTransaction` (`jsonParsed`) | Program ids, signers, plaintext token amounts and recipients, Memo text, system transfers. A signature that executed inside the rollup is not on the base layer: `onBaseLayer: false`, all lists empty |
 
 The binding never sets the API's `memo` field; the contract test asserts it on every request and decodes every submitted transaction. Receipt data goes in `clientRefId` and in the off-chain `Receipt`.
