@@ -29,6 +29,12 @@ export interface MagicBlockTransport {
   baseGenesisHash(): Promise<string>;
   /** Base layer: `getTransaction` with `jsonParsed`; `null` when the signature is not there. */
   baseTransaction(signature: Signature): Promise<unknown>;
+  /**
+   * Base layer: submits a signed transaction (base64 wire) and waits until it is confirmed,
+   * or throws when it failed or expired past `lastValidBlockHeight`. Used by the buyer's
+   * withdrawal only, which is a public transaction by design.
+   */
+  baseSubmit(wire: string, signature: Signature, lastValidBlockHeight: number): Promise<void>;
 }
 
 async function parseJson(res: Response): Promise<unknown> {
@@ -76,5 +82,16 @@ export function createTransport(config: { paymentsApiUrl: string; baseRpcUrl: st
     baseTransaction: (signature) =>
       // Version 1 transactions (SIMD-0385) exist on devnet; kit 8 types still say 0.
       baseRpc.getTransaction(signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1 as unknown as 0, commitment: "confirmed" }).send(),
+    async baseSubmit(wire, signature, lastValidBlockHeight) {
+      await baseRpc.sendTransaction(wire as Parameters<typeof baseRpc.sendTransaction>[0], { encoding: "base64", preflightCommitment: "confirmed", maxRetries: 3n }).send();
+      for (;;) {
+        const status = (await baseRpc.getSignatureStatuses([signature]).send()).value[0];
+        if (status?.err) throw new Error(`base-layer transaction failed: ${JSON.stringify(status.err)}`);
+        if (status && (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized")) return;
+        const height = Number(await baseRpc.getBlockHeight({ commitment: "confirmed" }).send());
+        if (height > lastValidBlockHeight) throw new Error(`base-layer transaction expired unconfirmed (block height ${height} > ${lastValidBlockHeight})`);
+        await new Promise((r) => setTimeout(r, 2_000));
+      }
+    },
   };
 }

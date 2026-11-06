@@ -173,6 +173,16 @@ export interface Confirm {
 
 export const DEFAULT_CONFIRM: Confirm = { attempts: 20, intervalMs: 1_000 };
 
+/** Signs a built transaction with the session's key, which must be its only missing signer. Returns the wire bytes and the signature; submits nothing. */
+export async function signBuilt(session: Session, keyPair: EscrowKeyPair, built: BuiltTransaction): Promise<{ signature: Signature; wire: string }> {
+  const missing = built.requiredSigners.filter((s) => s !== session.address);
+  if (missing.length) throw new Error(`transaction requires a signer this session does not hold (${missing.length} missing)`);
+  const unsigned = getTransactionDecoder().decode(getBase64Encoder().encode(built.transactionBase64));
+  const signed = await partiallySignTransaction([keyPair], unsigned);
+  if (Object.values(signed.signatures).some((s) => s === null)) throw new Error("transaction still needs a signature after signing with the session key");
+  return { wire: getBase64EncodedWireTransaction(signed), signature: getSignatureFromTransaction(signed) };
+}
+
 /**
  * Signs a transaction the API built and submits it inside the rollup: the build must be
  * routed to the ephemeral layer at the attested TEE RPC, the session's key must be its only
@@ -197,13 +207,7 @@ export async function submitEphemeral(
     throw new BindingError(BINDING_ERROR_CODES.bindingRejected, "the builder named an ephemeral endpoint other than the attested TEE RPC", { apiCode: "UNATTESTED_ENDPOINT" });
   }
 
-  const missing = built.requiredSigners.filter((s) => s !== session.address);
-  if (missing.length) throw new Error(`transfer requires a signer this session does not hold (${missing.length} missing)`);
-  const unsigned = getTransactionDecoder().decode(getBase64Encoder().encode(built.transactionBase64));
-  const signed = await partiallySignTransaction([keyPair], unsigned);
-  if (Object.values(signed.signatures).some((s) => s === null)) throw new Error("transfer still needs a signature after signing with the session key");
-  const wire = getBase64EncodedWireTransaction(signed);
-  const signature = getSignatureFromTransaction(signed);
+  const { signature, wire } = await signBuilt(session, keyPair, built);
 
   try {
     await transport.teeRpc(resolved.teeRpcUrl, "sendTransaction", [wire, { encoding: "base64", preflightCommitment: "confirmed" }], session.teeToken);

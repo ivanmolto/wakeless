@@ -37,8 +37,11 @@ interface BuyerBinding {
   teeValidator?: Address;
   network(): Caip2;
   deposit(to: Address, amount: bigint, ref: ClientRef): Promise<{ sig: Signature; transaction: string }>;
+  withdraw?(amount: bigint): Promise<{ sig: Signature }>;
 }
 ```
+
+`withdraw(amount)` (optional; task 8.1) moves part of the buyer's private balance back to its base-layer token account. It is a public base-layer transaction naming the buyer and the vault; the client offers it after a channel refund and performs it only when its owner says so.
 
 ## The vendor's side
 

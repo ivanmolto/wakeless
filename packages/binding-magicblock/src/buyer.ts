@@ -8,6 +8,7 @@ import {
   login,
   readPrivateBalance,
   resolveNetwork,
+  signBuilt,
   submitEphemeral,
   type AttestationReport,
   type Confirm,
@@ -113,5 +114,22 @@ export class MagicBlockBuyer implements BuyerBinding {
     }
     const { signature, wire } = await submitEphemeral(this.transport, this.resolved, this.session, this.config.buyer, built, this.confirm, this.sleep);
     return { sig: signature, transaction: wire };
+  }
+
+  /**
+   * The buyer's withdrawal to its base token account, as spike step 6 did for the vendor:
+   * `POST /v1/spl/withdraw` builds a base-layer transaction the buyer signs and submits to
+   * the base RPC. It is a public transaction naming the buyer and the vault, and the only
+   * base-layer submission in this package; the client makes it only when its owner says so.
+   */
+  async withdraw(amount: bigint): Promise<{ sig: Signature }> {
+    if (amount <= 0n) throw new RangeError("withdraw amount must be positive");
+    if ((await this.privateBalance()) < amount) throw new InsufficientPrivateBalanceError();
+    const request = { owner: this.session.address, cluster: this.resolved.apiCluster, mint: this.config.mint, amount: Number(amount), initAtasIfMissing: true, idempotent: true };
+    const built = parseBuiltTransaction(await this.transport.api({ method: "POST", path: "/v1/spl/withdraw", body: request, token: this.session.apiToken }));
+    if (built.sendTo !== "base") throw new Error("the withdraw builder did not route to the base layer");
+    const { signature, wire } = await signBuilt(this.session, this.config.buyer, built);
+    await this.transport.baseSubmit(wire, signature, built.lastValidBlockHeight);
+    return { sig: signature };
   }
 }

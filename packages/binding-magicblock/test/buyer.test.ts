@@ -111,3 +111,31 @@ describe("MagicBlockBuyer over a fake transport", () => {
     await expect(r1.deposit(escrowAddress, 0n, { id: clientRefId("1") })).rejects.toThrow(RangeError);
   });
 });
+
+describe("MagicBlockBuyer withdrawal (task 8.1)", () => {
+  it("withdraws to the base layer with a buyer-signed public transaction, and only when asked", async () => {
+    const transport = fake(3n * USDC_UNITS);
+    const rail = await MagicBlockBuyer.create({ ...common(), transport, buyer });
+    expect(transport.calls("POST", "/v1/spl/withdraw")).toHaveLength(0);
+    expect(transport.baseSubmits).toHaveLength(0);
+
+    const { sig } = await rail.withdraw(1_499_500n);
+    const builds = transport.calls("POST", "/v1/spl/withdraw");
+    expect(builds).toHaveLength(1);
+    expect(builds[0]!.body).toEqual({ owner: buyerAddress, cluster: "devnet-private", mint: USDC, amount: 1_499_500, initAtasIfMissing: true, idempotent: true });
+    expect(builds[0]!.token).toBe("api.token.part3.part4");
+    // Signed by the buyer, submitted to the base RPC, never to the TEE RPC.
+    expect(transport.baseSubmits).toHaveLength(1);
+    expect(transport.baseSubmits[0]!.signature).toBe(sig);
+    expect(decodeSignedTransaction(transport.baseSubmits[0]!.wire).signers).toEqual([buyerAddress]);
+    expect(transport.teeCalls.filter((c) => c.method === "sendTransaction")).toHaveLength(0);
+
+    // A short private balance, or a builder that routes elsewhere, sends nothing.
+    await expect(rail.withdraw(4n * USDC_UNITS)).rejects.toBeInstanceOf(InsufficientPrivateBalanceError);
+    const elsewhere = fake(3n * USDC_UNITS, { withdraw: async (body) => ({ ...(await transport.api({ method: "POST", path: "/v1/spl/withdraw", body })) as object, sendTo: "ephemeral" }) });
+    const other = await MagicBlockBuyer.create({ ...common(), transport: elsewhere, buyer });
+    await expect(other.withdraw(1n)).rejects.toThrow(/base layer/);
+    expect(elsewhere.baseSubmits).toHaveLength(0);
+    expect(transport.baseSubmits).toHaveLength(1);
+  });
+});

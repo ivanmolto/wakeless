@@ -127,4 +127,11 @@ export interface BuyerBinding {
    * for the x402 `deposit` payload.
    */
   deposit(to: Address, amount: bigint, ref: ClientRef): Promise<{ sig: Signature; transaction: string }>;
+  /**
+   * Moves `amount` base units of the buyer's private balance back to its base-layer token
+   * account. This is a public base-layer transaction naming the buyer and the vault; the
+   * client offers it after a refund and never performs it on its own (task 8.1). A rail
+   * without a withdrawal leaves it undefined.
+   */
+  withdraw?(amount: bigint): Promise<{ sig: Signature }>;
 }

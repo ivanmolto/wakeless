@@ -43,11 +43,11 @@ export function teeTransactionAsObserved(signature: string, err: unknown = null)
 }
 
 /** An unsigned transfer as the builder returns it: fee payer and sole required signer `from`. */
-export async function buildUnsignedTransfer(from: Address, fromAta: Address, toAta: Address, amount: bigint) {
+export async function buildUnsignedTransfer(from: Address, fromAta: Address, toAta: Address, amount: bigint, blockhash: Blockhash = BLOCKHASH) {
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     (m) => setTransactionMessageFeePayer(from, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: BLOCKHASH, lastValidBlockHeight: 400_000_000n }, m),
+    (m) => setTransactionMessageLifetimeUsingBlockhash({ blockhash, lastValidBlockHeight: 400_000_000n }, m),
     (m) => appendTransactionMessageInstruction(getTransferInstruction({ source: fromAta, destination: toAta, authority: from, amount }), m),
   );
   return compileTransaction(message);
@@ -76,11 +76,17 @@ export interface FakeTransportOptions {
   /** Answer to base-layer `getTransaction`; default: null (not on the base layer). */
   baseTransaction?: (signature: Signature) => Promise<unknown>;
   genesisHash?: string;
+  /** Replaces the answer to `POST /v1/spl/withdraw` (default: a base-layer build signed by the owner). */
+  withdraw?: (body: Record<string, unknown>) => Promise<unknown>;
+  /** The blockhash each build carries; default one constant, so two identical transfers sign identically. */
+  blockhash?: () => Blockhash;
 }
 
 export class FakeTransport implements MagicBlockTransport {
   readonly apiCalls: ApiRequest[] = [];
   readonly teeCalls: TeeCall[] = [];
+  /** Every base-layer submission: the only public transactions a rail makes (the buyer's withdrawal). */
+  readonly baseSubmits: { wire: string; signature: Signature }[] = [];
   balance: bigint;
   private readonly opts: FakeTransportOptions;
 
@@ -133,23 +139,46 @@ export class FakeTransport implements MagicBlockTransport {
       case "POST /v1/spl/transfer": {
         const body = request.body as Record<string, unknown>;
         if (this.opts.transfer) return this.opts.transfer(body);
-        const tx = await buildUnsignedTransfer(body.from as Address, this.ataOf(String(body.from)), this.ataOf(String(body.to)), BigInt(body.amount as number));
+        const blockhash = this.opts.blockhash?.() ?? BLOCKHASH;
+        const tx = await buildUnsignedTransfer(body.from as Address, this.ataOf(String(body.from)), this.ataOf(String(body.to)), BigInt(body.amount as number), blockhash);
         return {
           kind: "spl.transfer",
           version: "v0",
           transactionBase64: getBase64EncodedWireTransaction(tx),
           sendTo: "ephemeral",
           sendRpcEndpoint: TEE_RPC,
-          recentBlockhash: BLOCKHASH,
+          recentBlockhash: blockhash,
           lastValidBlockHeight: 400_000_000,
           instructionCount: 1,
           requiredSigners: [body.from],
           validator: VALIDATOR,
         };
       }
+      case "POST /v1/spl/withdraw": {
+        const body = request.body as Record<string, unknown>;
+        if (this.opts.withdraw) return this.opts.withdraw(body);
+        // The vault pays the owner's base ATA; the owner signs the request. Shape as the spike's step 6 answer.
+        const owner = String(body.owner) as Address;
+        // The destination is any well-formed account: the fake builds, it does not derive the owner's base ATA.
+        const tx = await buildUnsignedTransfer(owner, this.ataOf(owner), this.opts.escrowAta, BigInt(body.amount as number));
+        return {
+          kind: "spl.withdraw",
+          version: "v0",
+          transactionBase64: getBase64EncodedWireTransaction(tx),
+          sendTo: "base",
+          recentBlockhash: BLOCKHASH,
+          lastValidBlockHeight: 400_000_000,
+          instructionCount: 1,
+          requiredSigners: [owner],
+        };
+      }
       default:
         throw new ApiError(`${request.method} ${path}`, 404, "NOT_FOUND", "Route not found");
     }
+  }
+
+  async baseSubmit(wire: string, signature: Signature): Promise<void> {
+    this.baseSubmits.push({ wire, signature });
   }
 
   async teeRpc(url: string, method: string, params: readonly unknown[], token?: string): Promise<unknown> {
