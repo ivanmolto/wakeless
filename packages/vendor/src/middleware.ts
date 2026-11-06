@@ -234,6 +234,12 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
     if (accepted === undefined) {
       return paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.invalidPaymentRequirements, "accepted is not an entry this route offers", false));
     }
+    // A seller takes a payment: a deposit or a voucher. A close request (`refund`) goes to the
+    // facilitator from the buyer directly and pays for nothing; here it is refused before any call.
+    const payloadType = decoded.value.payload.type;
+    if (payloadType !== "deposit" && payloadType !== "voucher") {
+      return paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.payloadType, "payload.type must be deposit or voucher", false));
+    }
     const request = { x402Version: X402_VERSION, paymentPayload: { ...decoded.value, accepted }, paymentRequirements: accepted };
 
     const verdict = await facilitator.post("/verify", request);

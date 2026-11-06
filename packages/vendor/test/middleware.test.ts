@@ -248,6 +248,19 @@ describe("x402Shielded", () => {
     expect((await f.stores.channels.get(buyer.channelId))?.accepted).toBe(charge * 2n);
   });
 
+  it("a close request through the vendor is refused before the facilitator is asked", async () => {
+    // A `refund` payload pays for nothing: the buyer sends it to the facilitator directly (task 8.1).
+    const { url, calls } = await stubFacilitator(SUPPORTED);
+    const { app, calls: vendorCalls } = vendor(url);
+    const accept = shieldedEntry(decodeRequired(await app.request(RESOURCE)));
+    const payload = { type: "refund", channelConfig: { buyer: address(), vendor: accept.payTo, mint: accept.asset, salt: "7", withdrawDelay: accept.extra.withdrawDelay }, voucher: {}, closeSignature: "" };
+    const res = await app.request(RESOURCE, { headers: { [PAYMENT_SIGNATURE_HEADER]: encodeHeader({ x402Version: 2, accepted: accept, payload }) } });
+    expect(res.status).toBe(402);
+    expect(decodeRequired(res).error).toBe(SCHEME_ERROR_CODES.payloadType);
+    expect(calls).toEqual([]);
+    expect(vendorCalls.resource).toBe(0);
+  });
+
   it("a voucher the facilitator refuses gets a 402 with the code and no resource", async () => {
     const f = await facilitator();
     const { app, calls } = vendor(f.url);
