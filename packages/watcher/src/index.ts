@@ -10,7 +10,24 @@ export {
   type LedgerInstruction,
   type TokenTransfer,
 } from "./parse.js";
-export { parseRunFile, RunFileError, type RunFile } from "./run-file.js";
+export { parseRunFile, parseTrajectory, RunFileError, type RunFile } from "./run-file.js";
+export {
+  FUNDING_ROUTE,
+  FUNDING_VENDOR,
+  OwnerDataError,
+  ownerTrajectory,
+  parseOwnerChannelFile,
+  parseOwnerTrajectory,
+  readOwnerView,
+  renderOwnerView,
+  type BalanceSample,
+  type OwnerChannel,
+  type OwnerEntry,
+  type OwnerFundingSource,
+  type OwnerInput,
+  type PrivateBalanceSource,
+  type TrajectorySource,
+} from "./owner.js";
 export { assertDevnetGenesisHash, assertDevnetRpcUrl, createDevnetReader, createRecordedReader, redactSecrets, type FetchTransaction } from "./rpc.js";
 export {
   CHECK_NAMES,

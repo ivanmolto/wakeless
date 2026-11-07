@@ -42,7 +42,8 @@ function party(value: unknown, field: string): Party {
   throw new RunFileError(`${field} is not buyer, escrow or vendor`);
 }
 
-function trajectory(value: unknown, field: string): Trajectory {
+/** A `Trajectory` as `trajectoryToJson` writes it (amounts as decimal strings), validated. */
+export function parseTrajectory(value: unknown, field = "trajectory"): Trajectory {
   if (!isRecord(value)) throw new RunFileError(`${field} is not an object`);
   const vendors = addresses(value.vendors, `${field}.vendors`);
   const spendPerVendor: Record<Address, bigint> = {};
@@ -86,6 +87,6 @@ export function parseRunFile(json: unknown): RunFile {
     tokenAccounts,
     attributableAmounts: attributable.map((a, i) => amount(a, `attributableAmounts[${i}]`)),
     signatures,
-    actual: trajectory(json.actual, "actual"),
+    actual: parseTrajectory(json.actual, "actual"),
   };
 }
