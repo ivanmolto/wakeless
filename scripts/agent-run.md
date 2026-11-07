@@ -64,7 +64,7 @@ Close stdin (`< /dev/null`): from a non-interactive shell the old CLI waited on 
 pnpm agent-run finish $RUN ~/.wakeless/agent-$RUN-stream.jsonl ~/.wakeless/agent-$RUN-facilitator.log
 ```
 
-This exports `getTrajectory()` to `docs/runs/$RUN-trajectory.json` and writes `docs/runs/$RUN.md`. It stops, writing neither, if the facilitator's confirmed deposits or the private balance's movement disagree with the trajectory, if the session's server was not connected or the session failed, or if the text carries a signature, a token or a key.
+This exports `getTrajectory()` to `docs/runs/$RUN-trajectory.json`, writes `docs/runs/$RUN.md`, and keeps the private-balance reading it took in `~/.wakeless/agent-$RUN-after.json` (beside `-before.json`), so the owner's view in `@wakeless/watcher` has a reading on each side of the run. It stops, writing neither, if the facilitator's confirmed deposits or the private balance's movement disagree with the trajectory, if the session's server was not connected or the session failed, or if the text carries a signature, a token or a key.
 
 The published trajectory is the owner's entries without `depositSignature`; the signatures stay in the run's channel file under `~/.wakeless/`, where the watcher reads them. Two counts go in the file. The **base-layer transaction count** is the conservative bound of `pnpm e2e`: every transaction the run emitted, which is the deposits only. **On the public ledger** is the measured one: new signatures on the watched addresses. Deposits execute inside the MagicBlock rollup, so it is expected to be 0; anything else is a finding to report, not a number to tune.
 

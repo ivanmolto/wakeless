@@ -60,6 +60,11 @@ function storePath(run: string): string {
   return join(homedir(), ".wakeless", `agent-${run}-channels.json`);
 }
 
+/** The private-balance reading `finish` takes, kept so the owner's view (`@wakeless/watcher` owner.ts) has a reading after the run as well as before it. */
+function afterPath(run: string): string {
+  return join(homedir(), ".wakeless", `agent-${run}-after.json`);
+}
+
 function setup() {
   loadDotEnv(ROOT);
   if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_ENABLED is not honoured here: this script runs on devnet only");
@@ -216,7 +221,9 @@ async function finish(run: string, streamPath: string, facilitatorLogPath: strin
 
   const rail = await buyerRail(baseRpcUrl, mint, run);
   const onLedger = await newOnBaseLayer(rpc, mint, state);
-  const balanceMoved = BigInt(state.balance) - (await rail.privateBalance());
+  const after = await rail.privateBalance();
+  const balanceMoved = BigInt(state.balance) - after;
+  writeFileSync(afterPath(run), JSON.stringify({ at: new Date().toISOString(), balance: after.toString() }, null, 2) + "\n", { mode: 0o600 });
   const facilitatorLog = readFileSync(facilitatorLogPath, "utf8").split("\n");
   const confirmed = facilitatorLog.filter((line) => line.includes("deposit confirmed")).length;
   const settled = facilitatorLog.filter((line) => line.includes("POST /settle 200 settled")).length;
