@@ -1,6 +1,6 @@
 // `pnpm release:dry` (after `pnpm -r build`): packs the five publishable packages into
 // .release/ with pnpm, runs `npm pack --dry-run` on each tarball, prints the file lists,
-// and fails when a tarball holds anything but package.json, README.md and dist/, or when
+// and fails when a tarball holds anything but package.json, LICENSE, README.md and dist/, or when
 // a published manifest carries a version that is not exact. Publishes nothing.
 import { rmSync } from "node:fs";
 import { join, relative } from "node:path";

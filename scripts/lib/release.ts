@@ -43,9 +43,9 @@ export function rangeViolations(manifest: unknown, options: { allowWorkspace: bo
   return out;
 }
 
-/** Files a tarball may hold: `npm` always adds package.json; `files` allows dist and README. */
+/** Files a tarball may hold: `npm` always adds package.json and LICENSE; `files` allows dist and README. */
 export function isAllowedFile(path: string): boolean {
-  return path === "package.json" || path === "README.md" || path.startsWith("dist/");
+  return path === "package.json" || path === "README.md" || path === "LICENSE" || path.startsWith("dist/");
 }
 
 export interface PackedTarball {

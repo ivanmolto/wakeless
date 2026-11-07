@@ -41,6 +41,7 @@ describe("release dry run", () => {
       expect(entry.version).toBe(RELEASE_VERSION);
       expect(entry.files.filter((f) => !isAllowedFile(f)), entry.name).toEqual([]);
       expect(entry.files).toContain("README.md");
+      expect(entry.files).toContain("LICENSE");
       expect(entry.files).toContain("dist/index.js");
       expect(entry.files).toContain("dist/index.d.ts");
       expect(entry.files.some((f) => f.endsWith(".map") || f.startsWith("src/")), entry.name).toBe(false);
@@ -52,7 +53,7 @@ describe("release dry run", () => {
     for (const [i, pkg] of PUBLISHABLE.entries()) {
       const manifest = packedManifest(tarballs[i]!);
       expect(manifest.exports, pkg).toEqual({ ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } });
-      expect(manifest.files).toEqual(["dist", "README.md"]);
+      expect(manifest.files).toEqual(["dist", "README.md", "LICENSE"]);
       expect(manifest.sideEffects).toBe(false);
       expect(manifest.engines).toEqual({ node: ">=22.13.0" }); // the root's floor
       expect(manifest.type).toBe("module");
@@ -98,7 +99,7 @@ describe("version and file rules", () => {
 
   it("allows package.json, README.md and dist/ only", () => {
     expect(isAllowedFile("dist/index.js")).toBe(true);
-    for (const bad of ["src/index.ts", "tsup.config.ts", "test/x.test.ts", "README", "distx/a.js", "LICENSE"]) expect(isAllowedFile(bad), bad).toBe(false);
+    for (const bad of ["src/index.ts", "tsup.config.ts", "test/x.test.ts", "README", "distx/a.js", "LICENSE.txt"]) expect(isAllowedFile(bad), bad).toBe(false);
   });
 });
 
