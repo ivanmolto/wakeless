@@ -47,6 +47,10 @@ A refusal's body is `{error, code, retryable}`, the same triple the facilitator 
 
 The standard requires a plain `batch-settlement` entry to copy `feePayer` and `receiverAuthorizer` from the facilitator's `/supported`. The entry is therefore listed only when the facilitator advertises that kind on the same network. The Wakeless facilitator does not, since it settles only the shielded scheme, so against it `alsoAcceptPublic: true` adds nothing. A plain entry is a public rail: the buyer, the vendor and the amounts are readable on the ledger.
 
+## Before the vendor can be paid
+
+The `payTo` key must have made one private deposit of its own into the rail (`pnpm fund:private --role <vendor> --usdc 0.01` in this repo, or any `POST /v1/spl/deposit` with `private: true` signed by that key) before the enclave accepts a transfer to it. Without one the facilitator's redemption is refused with `shielded_binding_rejected` (`TEE_INGRESS`), recorded as terminal and left owed in escrow; `GET /receipts/:channelId` lists it under `rejected`. The deposit is a public base-layer transaction naming the vendor and the vault. Observed behaviour of the devnet rail, not documented by MagicBlock; see `@wakeless/vendors` for the account.
+
 ## What this protects
 
 The privacy claim is against the public ledger. Three operators see inside in v1: the facilitator (vouchers), MagicBlock's enclave (private transfers) and NEAR's private shard (funding origin and route). The vendor sees its own buyers' addresses in `PAYMENT-SIGNATURE`, and the middleware logs nothing.

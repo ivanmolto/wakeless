@@ -19,6 +19,16 @@ curl -i http://127.0.0.1:4021/price/SOLX
 
 `FACILITATOR_URL` defaults to `http://127.0.0.1:4020`. Without a facilitator the vendors still start, and every paid route answers `402` with code `shielded_facilitator_unavailable` and an empty `accepts[]`.
 
+## Before a vendor can be paid
+
+A vendor must make one private deposit of its own into the rail before the enclave will accept a transfer to it. Until it has, every redemption to that vendor is refused with `shielded_binding_rejected` (the Payments API's code `TEE_INGRESS`); the facilitator records the refusal as terminal, never retries it, never sends it as a public transfer, and the amount stays owed in escrow. Nothing reaches the base layer, so this is not a privacy failure, but the vendor does not get paid.
+
+```bash
+pnpm fund:private --role vendor2 --usdc 0.01
+```
+
+The vendor's base token account needs the USDC first (and the key some SOL for the fee). The deposit is one public base-layer transaction that names the vendor and the vault, with the amount in clear: onboarding, not a payment, and the watcher lists it as such. This is observed behaviour (31 Oct spike, confirmed 7 Nov when onboarding `vendor2` and `vendor3` turned two refusals into two landed transfers); MagicBlock does not document it, so treat the explanation as the best reading of what the rail does, not as a specification.
+
 Each vendor passes `alsoAcceptPublic: false`. Against the Wakeless facilitator `true` would change nothing: a plain `batch-settlement` entry needs `feePayer` and `receiverAuthorizer` from the facilitator's `/supported`, and this facilitator advertises only the shielded kind. There is no public fallback in the demo.
 
 ## Receipt reader
