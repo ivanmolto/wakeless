@@ -10,5 +10,8 @@ export default defineConfig({
     exclude: baseExclude,
     passWithNoTests: true,
     testTimeout: 120_000,
+    // Every devnet file reads and moves the same buyer, escrow and vendor private balances,
+    // so two files in flight at once break each other's balance-delta assertions (Gate 3, 7 Nov 2026).
+    fileParallelism: false,
   },
 });
