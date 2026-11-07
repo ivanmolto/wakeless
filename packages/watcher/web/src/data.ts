@@ -1,13 +1,10 @@
 // The shapes the page reads: `docs/side-by-side.json` (written by `pnpm side-by-side`) and,
-// when present, a leakage snapshot `docs/leak/snapshot-YYYY-MM-DD.json`. Both parsers take
-// unknown input and either return a typed value or throw ParseError; nothing else escapes.
+// when present, a leakage snapshot `docs/leak/snapshot-YYYY-MM-DD.json`, whose schema the
+// indexer owns (`packages/watcher/src/leak/snapshot.schema.ts`, task 11.3). Both parsers
+// take unknown input and either return a typed value or throw ParseError; nothing else escapes.
+import { ParseError } from "../../src/leak/snapshot.schema.js";
 
-export class ParseError extends Error {
-  constructor(path: string, what: string) {
-    super(`${path}: ${what}`);
-    this.name = "ParseError";
-  }
-}
+export { latestLeakHeadline, ParseError, parseLeakHeadline, type LeakHeadline } from "../../src/leak/snapshot.schema.js";
 
 export interface Comparison {
   readonly vendorsRecovered: number;
@@ -63,19 +60,6 @@ export interface SideBySide {
   readonly trustBoundary: string;
   readonly publicRail: Rail;
   readonly wakeless: Rail;
-}
-
-/** Headline counts of a leakage snapshot. Only `relationships` and the sample size are required. */
-export interface LeakHeadline {
-  readonly file: string;
-  readonly date: string;
-  /** Distinct (payer, payTo) pairs readable on mainnet. */
-  readonly relationships: number;
-  /** Sample size: signatures the indexer scanned. */
-  readonly signaturesScanned: number;
-  readonly channels?: number;
-  readonly payers?: number;
-  readonly payTo?: number;
 }
 
 type Obj = Record<string, unknown>;
@@ -191,40 +175,4 @@ export function parseSideBySide(v: unknown): SideBySide {
     publicRail: rail(o.public, "public", "public"),
     wakeless: rail(o.wakeless, "wakeless", "wakeless"),
   };
-}
-
-function optionalCount(o: Obj, key: string, path: string): number | undefined {
-  return o[key] === undefined ? undefined : count(o[key], `${path}.${key}`);
-}
-
-/**
- * The headline of a leakage snapshot, read from `headline` or, failing that, from the top
- * level. A snapshot without a relationship count or a sample size yields `undefined`: a
- * number without its sample size is not published (CLAUDE.md, Leakage dashboard).
- */
-export function parseLeakHeadline(file: string, v: unknown): LeakHeadline | undefined {
-  const o = obj(v, file);
-  const h = o.headline === undefined ? o : obj(o.headline, `${file}.headline`);
-  if (h.relationships === undefined || h.signaturesScanned === undefined) return undefined;
-  const channels = optionalCount(h, "channels", file);
-  const payers = optionalCount(h, "payers", file);
-  const payTo = optionalCount(h, "payTo", file);
-  return {
-    file,
-    date: str(o.date, `${file}.date`),
-    relationships: count(h.relationships, `${file}.relationships`),
-    signaturesScanned: count(h.signaturesScanned, `${file}.signaturesScanned`),
-    ...(channels === undefined ? {} : { channels }),
-    ...(payers === undefined ? {} : { payers }),
-    ...(payTo === undefined ? {} : { payTo }),
-  };
-}
-
-/** The latest snapshot by its dated file name, or undefined when there is none or none is usable. */
-export function latestLeakHeadline(files: Readonly<Record<string, unknown>>): LeakHeadline | undefined {
-  const dated = Object.keys(files)
-    .filter((f) => /snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(f))
-    .sort();
-  const last = dated.at(-1);
-  return last === undefined ? undefined : parseLeakHeadline(last.slice(last.lastIndexOf("/") + 1), files[last]);
 }
