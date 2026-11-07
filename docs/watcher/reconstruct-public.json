@@ -1,0 +1,16 @@
+{
+  "payer": "94BRf9UjVLdNUBGGeKuFqWSk4sA67EDtAmS9pm6RTjzT",
+  "vendors": [
+    "9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy"
+  ],
+  "firstContactOrder": [
+    "9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy"
+  ],
+  "spendPerVendor": {
+    "9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy": "100000"
+  },
+  "settlementTimes": [
+    1793487579
+  ],
+  "edges": []
+}

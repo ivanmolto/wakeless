@@ -1,0 +1,44 @@
+{
+  "title": "Wakeless, devnet: the 7 Nov 2026 pnpm e2e run (30 paid requests, three channels; 2026-11-06T23:48Z) with the vault deposit that funded it, and the rail's vault edges from the 31 Oct spike",
+  "rail": "wakeless",
+  "buyer": "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba",
+  "escrow": "EasXF7gqHLMMncsB7aV18EtzrhNkzQy2oC7pdKPKT3k6",
+  "vendors": [
+    "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+    "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc",
+    "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ"
+  ],
+  "tokenAccounts": {
+    "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba": ["4TzfDduj9WmgSNoDyk9tVBB6Dd6D8LhucrvmcjyTwQ79"],
+    "EasXF7gqHLMMncsB7aV18EtzrhNkzQy2oC7pdKPKT3k6": ["7TE7c8ZiHH1VbKHCqGGWxCTgFKmhde2R7npNWqNcVh7H"],
+    "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm": ["CKnjjE8QCfnwjgLm3xrZNAnSKr1hch9NaDxP1fhcETdf"]
+  },
+  "attributableAmounts": ["100000", "200000", "300000", "10010", "20020", "30030", "1001", "2002", "3003", "10000", "20000", "30000"],
+  "signatures": [
+    { "signature": "384j89A1T1BeVAp2UrTDvLYCL8EYnAjJpp3c3jFQzkLagD5ipv87kRUWWdwmDxGM8J2VJF73pYpWHym1Vs2v2C9U", "label": "vault deposit 1 USDC by the buyer, pnpm fund:private before the run (public base-layer transaction)", "party": "buyer" },
+    { "signature": "2Ym8ompGJLHargwaYXppXWUC89nmK2WKVPqjrk8mSUnT2Ycw3SDnDovf4uvzomtErtrCnwgbtnhPBYVtAjAtFcEg", "label": "channel deposit 0.1 USDC, vendor 1 (private transfer, e2e 23:48:19Z)", "party": "buyer" },
+    { "signature": "3VJQFW36FJUBncLshYbu8xzxnEw6R7GPqXQVDjXuewHZ3ijkYattY22EhSpsHtaix6pN1BiBLm8si4hZwMTv9vSY", "label": "channel deposit 0.2 USDC, vendor 2 (private transfer, e2e 23:48:21Z)", "party": "buyer" },
+    { "signature": "3r1VTETSxknq73e4Qwaqmt1hs1t2zyPD9HsB3zWj6P6VuZDMtvsXvMtjvg1bvwnB5H5i5pbnY9vq2ZZBkQyN1Exn", "label": "channel deposit 0.3 USDC, vendor 3 (private transfer, e2e 23:48:24Z)", "party": "buyer" },
+    { "signature": "2GqSZzaPYiXjKnzzEtqXoNbbJNCjigsVyuN8wvBDuUz1JV6wuGLDJ8AxNTPY5kYqnMVJWkRCDMNUDWkF5hyxyh22", "label": "vault deposit 2 USDC by the buyer (spike, 31 Oct 16:03Z)", "party": "buyer" },
+    { "signature": "5XKE2bt32CvgwRSNc4iaESJUd397WQLut7xHSudQK18YnGXACvEMLAsMU7AVAmy4BL66PpGxxPsx2ntc2Lz319bp", "label": "vault withdrawal 0.25 USDC to vendor 1, cranked by the validator (spike, 31 Oct 16:28Z)", "party": "vendor" }
+  ],
+  "actual": {
+    "payer": "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba",
+    "vendors": [
+      "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+      "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc",
+      "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ"
+    ],
+    "firstContactOrder": [
+      "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+      "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc",
+      "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ"
+    ],
+    "spendPerVendor": {
+      "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm": "10010",
+      "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc": "20020",
+      "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ": "30030"
+    },
+    "settlementTimes": []
+  }
+}

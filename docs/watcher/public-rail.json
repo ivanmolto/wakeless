@@ -1,0 +1,23 @@
+{
+  "title": "Public batch-settlement rail, devnet, 31 Oct 2026 (docs/public-rail-log.md, task 2.3)",
+  "rail": "public",
+  "buyer": "94BRf9UjVLdNUBGGeKuFqWSk4sA67EDtAmS9pm6RTjzT",
+  "escrow": "7re7bveMuceHWqgFum4Ncq1NKAYjyxKCQJbFY2C6QFNt",
+  "vendors": ["9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy"],
+  "tokenAccounts": {
+    "9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy": ["GFLEkt4zQBJdtbzezLw96r2hkEhVCf7LxBagnbY9eNto"]
+  },
+  "attributableAmounts": ["100000"],
+  "signatures": [
+    { "signature": "4CjgcqkYFVk5g1o92b67VL73FnxhJo4eyz56nBSHzyqmYHu7KqoW5rjYf7qxELTUrTpeixWJwRxrSifLynjwshjz", "label": "open (deposit, request 1)", "party": "buyer" },
+    { "signature": "4UkRoSZNzxCsJxGYsuRJxuYWpQrbBbXNHwD8bR9W4P4h2XgpV8XmRRQbfwwQjZsZW3rnxcSa53MC6B4KHHjnZSVX", "label": "settle (claim of the latest voucher)", "party": "escrow" },
+    { "signature": "4gQrESh5wjKkMBqzymEpbbXKXE9ksFHAuHULoEYVJdoVdmPxeAQ3U85mZBtfP18sSzHrv1ubrm1TpRf8ayUbqszM", "label": "distribute (payout to payTo)", "party": "escrow" }
+  ],
+  "actual": {
+    "payer": "94BRf9UjVLdNUBGGeKuFqWSk4sA67EDtAmS9pm6RTjzT",
+    "vendors": ["9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy"],
+    "firstContactOrder": ["9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy"],
+    "spendPerVendor": { "9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy": "100000" },
+    "settlementTimes": [1793487579]
+  }
+}

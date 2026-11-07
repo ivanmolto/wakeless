@@ -1,0 +1,382 @@
+{
+  "rail": "wakeless",
+  "rows": [
+    {
+      "signature": "384j89A1T1BeVAp2UrTDvLYCL8EYnAjJpp3c3jFQzkLagD5ipv87kRUWWdwmDxGM8J2VJF73pYpWHym1Vs2v2C9U",
+      "label": "vault deposit 1 USDC by the buyer, pnpm fund:private before the run (public base-layer transaction)",
+      "party": "buyer",
+      "onBaseLayer": true,
+      "slot": 519469332,
+      "blockTime": 1794008879,
+      "err": null,
+      "programIds": [
+        "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2",
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "11111111111111111111111111111111",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+      ],
+      "signers": [
+        "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba"
+      ],
+      "plaintextAmounts": [
+        {
+          "amount": "1000000",
+          "kind": "transfer",
+          "source": "4TzfDduj9WmgSNoDyk9tVBB6Dd6D8LhucrvmcjyTwQ79",
+          "destination": "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "amount": "1000000",
+          "kind": "balanceDelta",
+          "destination": "4TzfDduj9WmgSNoDyk9tVBB6Dd6D8LhucrvmcjyTwQ79",
+          "owner": "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "amount": "1000000",
+          "kind": "balanceDelta",
+          "destination": "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r",
+          "owner": "EiV97BPvmJzP4kzy28ciqddhQW864Wit3r3zYiLXARjG",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        }
+      ],
+      "plaintextRecipients": [
+        "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r"
+      ],
+      "memoText": [],
+      "feeTransfers": [
+        {
+          "from": "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba",
+          "to": "4RvdEGaUyChj3AketeBZoY1EotNtPveMFUXL8DVetrAp",
+          "lamports": "3000000"
+        }
+      ],
+      "checkedAgainst": "the vendors",
+      "checks": [
+        {
+          "check": 1,
+          "name": "no vendor address",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 2,
+          "name": "no vendor-attributable amount",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 3,
+          "name": "no Memo instruction",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 4,
+          "name": "no fee transfer naming the vendor",
+          "pass": true,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "signature": "2Ym8ompGJLHargwaYXppXWUC89nmK2WKVPqjrk8mSUnT2Ycw3SDnDovf4uvzomtErtrCnwgbtnhPBYVtAjAtFcEg",
+      "label": "channel deposit 0.1 USDC, vendor 1 (private transfer, e2e 23:48:19Z)",
+      "party": "buyer",
+      "onBaseLayer": false,
+      "slot": null,
+      "blockTime": null,
+      "err": null,
+      "programIds": [],
+      "signers": [],
+      "plaintextAmounts": [],
+      "plaintextRecipients": [],
+      "memoText": [],
+      "feeTransfers": [],
+      "checkedAgainst": "the vendors",
+      "checks": [
+        {
+          "check": 1,
+          "name": "no vendor address",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 2,
+          "name": "no vendor-attributable amount",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 3,
+          "name": "no Memo instruction",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 4,
+          "name": "no fee transfer naming the vendor",
+          "pass": true,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "signature": "3VJQFW36FJUBncLshYbu8xzxnEw6R7GPqXQVDjXuewHZ3ijkYattY22EhSpsHtaix6pN1BiBLm8si4hZwMTv9vSY",
+      "label": "channel deposit 0.2 USDC, vendor 2 (private transfer, e2e 23:48:21Z)",
+      "party": "buyer",
+      "onBaseLayer": false,
+      "slot": null,
+      "blockTime": null,
+      "err": null,
+      "programIds": [],
+      "signers": [],
+      "plaintextAmounts": [],
+      "plaintextRecipients": [],
+      "memoText": [],
+      "feeTransfers": [],
+      "checkedAgainst": "the vendors",
+      "checks": [
+        {
+          "check": 1,
+          "name": "no vendor address",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 2,
+          "name": "no vendor-attributable amount",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 3,
+          "name": "no Memo instruction",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 4,
+          "name": "no fee transfer naming the vendor",
+          "pass": true,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "signature": "3r1VTETSxknq73e4Qwaqmt1hs1t2zyPD9HsB3zWj6P6VuZDMtvsXvMtjvg1bvwnB5H5i5pbnY9vq2ZZBkQyN1Exn",
+      "label": "channel deposit 0.3 USDC, vendor 3 (private transfer, e2e 23:48:24Z)",
+      "party": "buyer",
+      "onBaseLayer": false,
+      "slot": null,
+      "blockTime": null,
+      "err": null,
+      "programIds": [],
+      "signers": [],
+      "plaintextAmounts": [],
+      "plaintextRecipients": [],
+      "memoText": [],
+      "feeTransfers": [],
+      "checkedAgainst": "the vendors",
+      "checks": [
+        {
+          "check": 1,
+          "name": "no vendor address",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 2,
+          "name": "no vendor-attributable amount",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 3,
+          "name": "no Memo instruction",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 4,
+          "name": "no fee transfer naming the vendor",
+          "pass": true,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "signature": "2GqSZzaPYiXjKnzzEtqXoNbbJNCjigsVyuN8wvBDuUz1JV6wuGLDJ8AxNTPY5kYqnMVJWkRCDMNUDWkF5hyxyh22",
+      "label": "vault deposit 2 USDC by the buyer (spike, 31 Oct 16:03Z)",
+      "party": "buyer",
+      "onBaseLayer": true,
+      "slot": 517188319,
+      "blockTime": 1793462596,
+      "err": null,
+      "programIds": [
+        "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2",
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "11111111111111111111111111111111",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+      ],
+      "signers": [
+        "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba"
+      ],
+      "plaintextAmounts": [
+        {
+          "amount": "2000000",
+          "kind": "transfer",
+          "source": "4TzfDduj9WmgSNoDyk9tVBB6Dd6D8LhucrvmcjyTwQ79",
+          "destination": "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "amount": "2000000",
+          "kind": "balanceDelta",
+          "destination": "4TzfDduj9WmgSNoDyk9tVBB6Dd6D8LhucrvmcjyTwQ79",
+          "owner": "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "amount": "2000000",
+          "kind": "balanceDelta",
+          "destination": "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r",
+          "owner": "EiV97BPvmJzP4kzy28ciqddhQW864Wit3r3zYiLXARjG",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        }
+      ],
+      "plaintextRecipients": [
+        "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r"
+      ],
+      "memoText": [],
+      "feeTransfers": [
+        {
+          "from": "3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba",
+          "to": "4RvdEGaUyChj3AketeBZoY1EotNtPveMFUXL8DVetrAp",
+          "lamports": "500000"
+        }
+      ],
+      "checkedAgainst": "the vendors",
+      "checks": [
+        {
+          "check": 1,
+          "name": "no vendor address",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 2,
+          "name": "no vendor-attributable amount",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 3,
+          "name": "no Memo instruction",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 4,
+          "name": "no fee transfer naming the vendor",
+          "pass": true,
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "signature": "5XKE2bt32CvgwRSNc4iaESJUd397WQLut7xHSudQK18YnGXACvEMLAsMU7AVAmy4BL66PpGxxPsx2ntc2Lz319bp",
+      "label": "vault withdrawal 0.25 USDC to vendor 1, cranked by the validator (spike, 31 Oct 16:28Z)",
+      "party": "vendor",
+      "onBaseLayer": true,
+      "slot": 517194528,
+      "blockTime": 1793464081,
+      "err": null,
+      "programIds": [
+        "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+        "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
+        "11111111111111111111111111111111",
+        "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      ],
+      "signers": [
+        "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo"
+      ],
+      "plaintextAmounts": [
+        {
+          "amount": "250000",
+          "kind": "transfer",
+          "source": "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r",
+          "destination": "CKnjjE8QCfnwjgLm3xrZNAnSKr1hch9NaDxP1fhcETdf",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "amount": "250000",
+          "kind": "balanceDelta",
+          "destination": "TEy2XnwbueFzCMTAJhgxa4vrWb3N1Dhe4ANy4CgVr3r",
+          "owner": "EiV97BPvmJzP4kzy28ciqddhQW864Wit3r3zYiLXARjG",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "amount": "250000",
+          "kind": "balanceDelta",
+          "destination": "CKnjjE8QCfnwjgLm3xrZNAnSKr1hch9NaDxP1fhcETdf",
+          "owner": "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+          "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        }
+      ],
+      "plaintextRecipients": [
+        "CKnjjE8QCfnwjgLm3xrZNAnSKr1hch9NaDxP1fhcETdf"
+      ],
+      "memoText": [],
+      "feeTransfers": [
+        {
+          "from": "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo",
+          "to": "29gyMutDbV5PHSha1pEtzmLLNYcyscFNVJEQt5jP1xnv",
+          "lamports": "391040"
+        },
+        {
+          "from": "MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo",
+          "to": "29gyMutDbV5PHSha1pEtzmLLNYcyscFNVJEQt5jP1xnv",
+          "lamports": "391040"
+        }
+      ],
+      "checkedAgainst": "the escrow and the buyer",
+      "checks": [
+        {
+          "check": 1,
+          "name": "no vendor address",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 2,
+          "name": "no vendor-attributable amount",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 3,
+          "name": "no Memo instruction",
+          "pass": true,
+          "evidence": []
+        },
+        {
+          "check": 4,
+          "name": "no fee transfer naming the vendor",
+          "pass": true,
+          "evidence": []
+        }
+      ]
+    }
+  ],
+  "failures": [],
+  "counts": {
+    "signatures": 6,
+    "onBaseLayer": 3,
+    "notOnBaseLayer": 3
+  }
+}
