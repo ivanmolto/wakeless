@@ -1,0 +1,30 @@
+# @wakeless/watcher
+
+Status: devnet alpha, unaudited
+
+What the public ledger shows of a run, and what an unprivileged reader can rebuild from it. The watcher is the auditor of the bindings: it reads the base layer through its own RPC reader (`getTransaction`, `jsonParsed`, read methods only, devnet asserted by genesis hash), never through a binding's word, and it loads no keypair. Private package, not published.
+
+## The observer's view and the four checks (`observer.ts`)
+
+For every signature: program ids, signers, plaintext token amounts (parsed transfers and token-balance deltas), plaintext recipients, Memo text, fee transfers and their recipients, as an `ObserverView` of `@wakeless/binding` plus every account key and every instruction's raw data. On each one, the four pass/fail checks of the briefing (§5):
+
+1. no vendor address;
+2. no vendor-attributable amount;
+3. no Memo instruction;
+4. no fee transfer naming the vendor.
+
+The checks are mechanical. A fixed set of addresses (the vendors' wallets and token accounts, and the owner of any token account the balances credit) and a fixed set of amounts (what the owner's trajectory paid: deposits, prices, cumulative vouchers) must appear nowhere: not as a signer, a recipient, a transfer party, a memo substring, a fee transfer party, nor as 32 bytes or a little-endian `u64` inside any instruction's data. The last clause is what makes the public rail's `open` fail check 1 (its `payTo` lives in the program's arguments) and its `settle` fail check 2 (the voucher's cumulative amount sits in the Ed25519 instruction). A signature that is not on the base layer passes all four: there is nothing to read. A transaction the buyer or the escrow made is checked against the vendors; a vendor's own withdrawal names the vendor by construction (briefing §5: recipient, asset, amount; source is the vault) and is checked against the escrow and the buyer instead, as the rule for that party, not as a judgement per row. `observe(run, reader)` returns the rows and every failed check with its signature and evidence; `renderMarkdownTable` and `reportToJson` print them.
+
+## Reconstruction (`reconstruct.ts`)
+
+`reconstruct(transactions)` returns `{payer?, vendors, firstContactOrder, spendPerVendor, settlementTimes, edges}`: the trajectory an observer rebuilds from the signatures and nothing else. On the public rail it decodes the payment-channels program (`CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX`) with the instruction layouts of its codama IDL (`vendor/payment-channels`, a gitignored clone of `solana-foundation/payment-channels`): `open` gives the payer, the recipients with their basis points and the deposit; `settle` and `settleAndSeal` give the voucher's cumulative amount from the Ed25519 instruction beside them and the settlement time; `distribute` gives the payout per recipient from the transfers out of the channel's token account; `topUp` moves the deposit. Direct transfers the payer signs (the `exact` scheme) count too. Order of input does not matter. Any token transfer the reader cannot attribute to a payer is returned in `edges` (owner → owner, amount, the top-level program), which is what remains readable of Wakeless: vault deposits and vault withdrawals, unlinked to each other and to any vendor relationship. Nothing is tunable; a Wakeless fixture that recovers a vendor is a failing test.
+
+`compare(reconstructed, actual)` returns `{vendorsRecovered, vendorsActual, spendRecoveredBps, orderRecovered}`: the actual vendors the reconstruction names, the actual spend it recovers (per vendor, capped at the actual), and whether the first-contact order matches exactly.
+
+On the three devnet signatures of `docs/public-rail-log.md` the reconstruction equals the hand-written block there (payer `94BR…TjzT`, vendor `9JD9…fPgy`, spend 100000, settlement at 1793487579). On the Wakeless signatures of the 6 Nov run it recovers no payer, no vendor, no spend and no settlement time; the two vault edges of the spike are listed as edges.
+
+## Running it
+
+`pnpm watcher` reads `docs/watcher/public-rail.json` and `docs/watcher/wakeless-run.json` (the signatures, who made each, the owner's addresses and amounts, and the owner's actual trajectory), fetches every signature from devnet through `SOLANA_RPC_URL`, writes `docs/watcher/observer-*.json`, `docs/watcher/reconstruct-*.json` and `docs/WATCHER.md`, and exits non-zero naming the signature and the check when a Wakeless signature fails one. `pnpm e2e` runs the same four checks on every signature it emits, through the same reader, and fails on one failure. `pnpm test:devnet` fetches the run file's signatures and asserts every check passes (`test/observer.devnet.test.ts`).
+
+Errors never quote the RPC URL (it carries an API key). The package's fixtures are real devnet responses, kept verbatim under `test/fixtures/`.

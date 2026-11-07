@@ -1,6 +1,26 @@
 {
   "name": "@wakeless/watcher",
   "version": "0.0.0",
+  "description": "What the public ledger shows of a Wakeless run: the observer's four checks and the trajectory an unprivileged reader can rebuild. Devnet alpha, unaudited.",
   "private": true,
-  "type": "module"
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@solana/kit": "8.6.0",
+    "@wakeless/binding": "workspace:*"
+  }
 }

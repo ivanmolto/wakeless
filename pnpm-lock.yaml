@@ -223,7 +223,14 @@ importers:
         specifier: workspace:*
         version: link:../facilitator
 
-  packages/watcher: {}
+  packages/watcher:
+    dependencies:
+      '@solana/kit':
+        specifier: 8.6.0
+        version: 8.6.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@wakeless/binding':
+        specifier: workspace:*
+        version: link:../binding
 
   scripts:
     dependencies:
@@ -257,6 +264,9 @@ importers:
       '@wakeless/vendors':
         specifier: workspace:*
         version: link:../packages/vendors
+      '@wakeless/watcher':
+        specifier: workspace:*
+        version: link:../packages/watcher
 
 packages:
 
