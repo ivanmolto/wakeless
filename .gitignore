@@ -18,3 +18,5 @@ docs/OUTREACH.md
 # The leakage indexer's raw mainnet responses (full addresses); only the dated snapshot is tracked.
 docs/leak/cache/
 .DS_Store
+# Tarballs written by pnpm release:dry.
+/.release/

@@ -1,9 +1,13 @@
 {
   "name": "@wakeless/binding",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.0",
   "description": "SettlementBinding: what a Wakeless settlement pool must provide. Devnet alpha, unaudited.",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -11,17 +15,29 @@
       "import": "./dist/index.js"
     }
   },
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "README.md"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "prepublishOnly": "node ../../scripts/release-guard.mjs"
   },
   "dependencies": {
     "@solana/kit": "8.6.0"
+  },
+  "devDependencies": {
+    "tsup": "9.0.0",
+    "typescript": "5.9.3"
   }
 }

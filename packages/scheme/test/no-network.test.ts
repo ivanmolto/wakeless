@@ -63,8 +63,14 @@ describe("@wakeless/scheme", () => {
       ctx.skip(reason);
       return;
     }
+    // tsup bundles every source file into dist/index.js (task 11.2), so instead of counting
+    // files the test checks the one bundle carries every module's exports.
     const built = filesUnder(dist, /\.js$/);
-    expect(built.length).toBeGreaterThan(5);
+    expect(built.length).toBeGreaterThan(0);
     scan(built);
+    const bundle = readFileSync(join(dist, "index.js"), "utf8");
+    for (const name of ["signVoucher", "verifyVoucher", "deriveChannelId", "clientRefOf", "nextWatermark", "signReceipt", "signCloseRequest", "encodeBase58"]) {
+      expect(bundle, `dist/index.js exports ${name}`).toMatch(new RegExp(`\\b${name}\\b`));
+    }
   });
 });

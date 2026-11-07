@@ -1,9 +1,13 @@
 {
   "name": "@wakeless/vendor",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.0",
   "description": "x402 batch-settlement-shielded seller middleware for Hono: 402, /verify, resource, /settle. Devnet alpha, unaudited.",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -11,24 +15,34 @@
       "import": "./dist/index.js"
     }
   },
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "README.md"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "prepublishOnly": "node ../../scripts/release-guard.mjs"
   },
   "dependencies": {
-    "@wakeless/scheme": "workspace:*",
+    "@wakeless/scheme": "workspace:0.1.0-alpha.0",
     "hono": "4.13.14"
   },
   "devDependencies": {
     "@hono/node-server": "2.1.5",
-    "@wakeless/binding": "workspace:*",
-    "@wakeless/facilitator": "workspace:*",
-    "fast-check": "4.10.2"
+    "@wakeless/binding": "workspace:0.1.0-alpha.0",
+    "@wakeless/facilitator": "workspace:0.0.0",
+    "fast-check": "4.10.2",
+    "tsup": "9.0.0",
+    "typescript": "5.9.3"
   }
 }

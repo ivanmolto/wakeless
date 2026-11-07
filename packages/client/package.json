@@ -1,9 +1,13 @@
 {
   "name": "@wakeless/client",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.0",
   "description": "The Wakeless buyer side: a fetch that pays batch-settlement-shielded 402s with channel vouchers after one private deposit per vendor. Devnet alpha, unaudited.",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -11,6 +15,7 @@
       "import": "./dist/index.js"
     }
   },
+  "types": "./dist/index.d.ts",
   "bin": {
     "wakeless": "./dist/cli.js"
   },
@@ -19,22 +24,34 @@
     "README.md"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "prepublishOnly": "node ../../scripts/release-guard.mjs"
   },
   "dependencies": {
     "@solana/kit": "8.6.0",
-    "@wakeless/binding": "workspace:*",
-    "@wakeless/binding-magicblock": "workspace:*",
-    "@wakeless/scheme": "workspace:*"
+    "@wakeless/binding-magicblock": "workspace:0.1.0-alpha.0",
+    "@wakeless/scheme": "workspace:0.1.0-alpha.0"
+  },
+  "peerDependencies": {
+    "@wakeless/binding": "workspace:0.1.0-alpha.0"
   },
   "devDependencies": {
     "@hono/node-server": "2.1.5",
-    "@wakeless/facilitator": "workspace:*",
-    "@wakeless/vendor": "workspace:*",
+    "@wakeless/binding": "workspace:0.1.0-alpha.0",
+    "@wakeless/facilitator": "workspace:0.0.0",
+    "@wakeless/vendor": "workspace:0.1.0-alpha.0",
     "fast-check": "4.10.2",
-    "hono": "4.13.14"
+    "hono": "4.13.14",
+    "tsup": "9.0.0",
+    "typescript": "5.9.3"
   }
 }
