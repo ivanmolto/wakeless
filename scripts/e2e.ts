@@ -6,6 +6,7 @@
 // Spends 0.6 devnet USDC from the buyer's private balance into escrow.
 //
 //   pnpm e2e
+import { formatFailures } from "@wakeless/watcher";
 import { redactSecrets } from "./lib/devnet.js";
 import { E2E_TITLE, evaluateE2e, formatE2eTable } from "./lib/e2e-metric.js";
 import { startInProcessRun } from "./lib/in-process-run.js";
@@ -42,16 +43,22 @@ async function main(): Promise<void> {
   };
   run.assertLogsClean();
   const verdict = evaluateE2e(counts);
+  // Every signature the run produced goes through the watcher's four checks (CLAUDE.md,
+  // Privacy rules); one failure fails the run.
+  const watcher = await run.watcherReport();
+  const watcherFailures = formatFailures(watcher);
 
   console.log(formatE2eTable(counts, verdict));
+  console.log(`${"watcher four checks".padEnd(42)}  ${watcherFailures.length === 0 ? `  pass` : `  FAIL`} (${watcher.counts.signatures} signatures, ${watcher.counts.onBaseLayer} on the base layer)`);
   console.log("");
   console.log(`served per vendor       ${servedPerVendor.join(", ")}`);
   console.log(`private balance moved   ${Number(run.balanceBefore - (await run.privateBalance())) / 1e6} USDC into escrow`);
   console.log(`attestation             docs/attestation-client.json, docs/attestation-facilitator.json`);
   console.log(`elapsed                 ${((Date.now() - started) / 1000).toFixed(1)} s`);
   console.log("");
-  if (verdict.failures.length > 0) {
+  if (verdict.failures.length > 0 || watcherFailures.length > 0) {
     for (const failure of verdict.failures) console.error(`FAIL: ${failure}`);
+    for (const failure of watcherFailures) console.error(failure);
     console.error(`FAIL ${E2E_TITLE}`);
     process.exit(1);
   }

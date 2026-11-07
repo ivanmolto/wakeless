@@ -17,6 +17,7 @@ import { wrapFetchWithWakeless } from "@wakeless/client";
 import { createDepositHandler, createFacilitatorApp, createMemoryStores, createRedeemer, type CloseRunSummary, type RedeemRunSummary, type Stores } from "@wakeless/facilitator";
 import { publicKeyOf } from "@wakeless/scheme";
 import { VENDORS, startVendors, type RunningVendors } from "@wakeless/vendors";
+import { createDevnetReader, observe, type ObserverReport, type SignatureInput } from "@wakeless/watcher";
 import { assertDevnetRpcUrl } from "./devnet.js";
 import { loadDotEnv } from "./env.js";
 import { assertNotMainnetKeyPath } from "./keypairs.js";
@@ -43,22 +44,25 @@ function keyBytes(envVar: string, fallback: string): Uint8Array {
   return Uint8Array.from(bytes as number[]);
 }
 
+/** Every signature a run emits, with who made it, for the watcher's four checks. */
+type Emitted = (entry: SignatureInput) => void;
+
 /** The buyer's rail with its deposits counted. */
-function countedBuyer(rail: BuyerBinding, signatures: Signature[]): BuyerBinding {
+function countedBuyer(rail: BuyerBinding, emitted: Emitted): BuyerBinding {
   return {
     id: rail.id,
     ...(rail.teeValidator === undefined ? {} : { teeValidator: rail.teeValidator }),
     network: () => rail.network(),
     async deposit(to, amount, ref) {
       const result = await rail.deposit(to, amount, ref);
-      signatures.push(result.sig);
+      emitted({ signature: result.sig, label: "channel deposit (private transfer)", party: "buyer" });
       return result;
     },
   };
 }
 
 /** The escrow's binding with its transfers counted, so redemptions land in the metric when the facilitator makes them. */
-function countedEscrow(binding: SettlementBinding, signatures: Signature[]): SettlementBinding {
+function countedEscrow(binding: SettlementBinding, emitted: Emitted): SettlementBinding {
   return {
     id: binding.id,
     network: () => binding.network(),
@@ -69,12 +73,12 @@ function countedEscrow(binding: SettlementBinding, signatures: Signature[]): Set
     observe: (sig) => binding.observe(sig),
     async settle(to, amount, ref) {
       const result = await binding.settle(to, amount, ref);
-      signatures.push(result.sig);
+      emitted({ signature: result.sig, label: "settlement (private transfer)", party: "escrow" });
       return result;
     },
     async refund(to, amount, ref) {
       const result = await binding.refund(to, amount, ref);
-      signatures.push(result.sig);
+      emitted({ signature: result.sig, label: "refund (private transfer)", party: "escrow" });
       return result;
     },
   };
@@ -107,6 +111,12 @@ export interface InProcessRun {
   privateBalance(): Promise<bigint>;
   /** How many of the signatures so far the public ledger shows. */
   countVisibleOnBaseLayer(): Promise<number>;
+  /**
+   * The watcher's four checks on every signature emitted so far, read from the base layer by
+   * the watcher's own reader (`@wakeless/watcher`), against the three vendors and every
+   * amount the trajectory paid them. `report.failures` non-empty fails the run.
+   */
+  watcherReport(): Promise<ObserverReport>;
   /** Throws if a log line carries a signature or a bearer token. */
   assertLogsClean(): void;
   close(): Promise<void>;
@@ -125,11 +135,16 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
     mint: address(required("USDC_MINT")),
   };
   const signatures: Signature[] = [];
+  const emittedInputs: SignatureInput[] = [];
+  const emitted: Emitted = (entry) => {
+    signatures.push(entry.signature);
+    emittedInputs.push(entry);
+  };
 
   // The facilitator, in process, over the real escrow binding.
   const escrow = await createKeyPairFromBytes(keyBytes("ESCROW_KEYPAIR", "keys/escrow.json"));
   const realBinding = await MagicBlockBinding.create({ ...common, escrow, attestationReportPath: resolve(ROOT, "docs/attestation-facilitator.json") });
-  const binding = countedEscrow(realBinding, signatures);
+  const binding = countedEscrow(realBinding, emitted);
   const stores = createMemoryStores();
   const facilitatorLog: string[] = [];
   const log = (line: string) => facilitatorLog.push(line);
@@ -176,7 +191,9 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const channelStoreLocal = resolve(homedir(), ".wakeless", `${label}-${stamp}.json`);
     const clientLog: string[] = [];
-    const pay = wrapFetchWithWakeless(fetch, { buyerKeypair, rail: countedBuyer(buyerRail, signatures), channelStoreLocal, facilitatorUrl: facilitator.url, log: (line) => clientLog.push(line) });
+    const pay = wrapFetchWithWakeless(fetch, { buyerKeypair, rail: countedBuyer(buyerRail, emitted), channelStoreLocal, facilitatorUrl: facilitator.url, log: (line) => clientLog.push(line) });
+    const buyerAddress = address(publicKeyOf({ secretKey: buyerKeypair }));
+    const readBaseLayer = createDevnetReader(baseRpcUrl);
 
     return {
       vendors,
@@ -198,6 +215,24 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
           if (isVisibleOnBaseLayer(await realBinding.observe(signature))) visible++;
         }
         return visible;
+      },
+      watcherReport() {
+        const trajectory = pay.getTrajectory();
+        const amounts = new Set<bigint>();
+        for (const entry of trajectory) {
+          for (const value of [entry.amount, entry.cumulative, entry.deposit]) if (value !== undefined && /^[1-9][0-9]*$/.test(value)) amounts.add(BigInt(value));
+        }
+        return observe(
+          {
+            rail: "wakeless",
+            buyer: buyerAddress,
+            escrow: realBinding.escrowAddress(),
+            vendors: vendorKeys.map((v) => address(v.payTo)),
+            attributableAmounts: [...amounts],
+            signatures: emittedInputs.map((entry, i) => ({ ...entry, label: `${i + 1}. ${entry.label}` })),
+          },
+          readBaseLayer,
+        );
       },
       assertLogsClean() {
         for (const line of [...clientLog, ...facilitatorLog]) {

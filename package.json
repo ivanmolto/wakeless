@@ -23,7 +23,8 @@
     "vendors": "pnpm --filter @wakeless/vendors start",
     "vendor:receipts": "tsx --conditions=development scripts/vendor-receipts.ts",
     "client:20": "tsx --conditions=development scripts/client-20.ts",
-    "agent-run": "tsx --conditions=development scripts/agent-run.ts"
+    "agent-run": "tsx --conditions=development scripts/agent-run.ts",
+    "watcher": "tsx --conditions=development scripts/watcher.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
