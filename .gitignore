@@ -14,4 +14,6 @@ docs/IDEAS.md
 docs/LOG.md
 docs/VERSIONS.md
 docs/MID-SUBMISSION.md
+# The leakage indexer's raw mainnet responses (full addresses); only the dated snapshot is tracked.
+docs/leak/cache/
 .DS_Store

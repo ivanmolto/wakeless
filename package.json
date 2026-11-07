@@ -26,6 +26,7 @@
     "agent-run": "tsx --conditions=development scripts/agent-run.ts",
     "watcher": "tsx --conditions=development scripts/watcher.ts",
     "side-by-side": "tsx --conditions=development scripts/side-by-side.ts",
+    "leak:index": "tsx --conditions=development scripts/leak-index.ts",
     "watcher:web": "pnpm --filter @wakeless/watcher-web dev"
   },
   "devDependencies": {
