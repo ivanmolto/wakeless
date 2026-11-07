@@ -1,0 +1,262 @@
+{
+  "schema": "wakeless-leak-snapshot@1",
+  "date": "2026-11-07",
+  "program": {
+    "id": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+    "explorer": "https://explorer.solana.com/address/CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX"
+  },
+  "rpcHost": "mainnet.helius-rpc.com",
+  "sample": {
+    "signaturesScanned": 18291,
+    "signaturesCap": 20000,
+    "since": null,
+    "oldest": "2026-06-24T17:08:53.000Z",
+    "newest": "2026-11-07T14:46:30.000Z",
+    "transactionsFetched": 18291,
+    "transactionsFailed": 94,
+    "channelsWithoutOpen": 0
+  },
+  "headline": {
+    "channels": 2464,
+    "payers": 328,
+    "payTo": 60,
+    "relationships": 410,
+    "payersWithTwoOrMorePayTo": 24,
+    "signaturesScanned": 18291
+  },
+  "channelsPerPayer": {
+    "median": 2,
+    "max": 400,
+    "payers": 328
+  },
+  "payToDegree": [
+    {
+      "payTo": "Cs2z…uEqP",
+      "payers": 242,
+      "channels": 1483
+    },
+    {
+      "payTo": "2wKu…DBg4",
+      "payers": 16,
+      "channels": 16
+    },
+    {
+      "payTo": "AQqn…EeKA",
+      "payers": 11,
+      "channels": 83
+    },
+    {
+      "payTo": "5JRt…XE5S",
+      "payers": 9,
+      "channels": 34
+    },
+    {
+      "payTo": "4s2J…hyv1",
+      "payers": 7,
+      "channels": 10
+    },
+    {
+      "payTo": "9r3S…gDYr",
+      "payers": 7,
+      "channels": 8
+    },
+    {
+      "payTo": "BLcM…VGzw",
+      "payers": 7,
+      "channels": 8
+    },
+    {
+      "payTo": "BXPK…MjP3",
+      "payers": 7,
+      "channels": 8
+    },
+    {
+      "payTo": "71pY…J2Wz",
+      "payers": 6,
+      "channels": 7
+    },
+    {
+      "payTo": "Ahmb…LcBz",
+      "payers": 6,
+      "channels": 7
+    }
+  ],
+  "payeeSeats": 54,
+  "settled": {
+    "unit": "USDC",
+    "decimals": 6,
+    "channelsWithSettlement": 2193,
+    "channelsWithoutSettlement": 221,
+    "total": "1225456841",
+    "median": "5000",
+    "max": "222553245",
+    "channelsInOtherMints": 50,
+    "channelsWithUnknownMint": 0
+  },
+  "channelsPerWeek": [
+    {
+      "week": "2026-06-29",
+      "channels": 137
+    },
+    {
+      "week": "2026-07-06",
+      "channels": 21
+    },
+    {
+      "week": "2026-07-13",
+      "channels": 21
+    },
+    {
+      "week": "2026-07-20",
+      "channels": 135
+    },
+    {
+      "week": "2026-07-27",
+      "channels": 100
+    },
+    {
+      "week": "2026-08-03",
+      "channels": 215
+    },
+    {
+      "week": "2026-08-10",
+      "channels": 429
+    },
+    {
+      "week": "2026-08-17",
+      "channels": 446
+    },
+    {
+      "week": "2026-08-24",
+      "channels": 28
+    },
+    {
+      "week": "2026-08-31",
+      "channels": 75
+    },
+    {
+      "week": "2026-09-07",
+      "channels": 133
+    },
+    {
+      "week": "2026-09-14",
+      "channels": 216
+    },
+    {
+      "week": "2026-09-21",
+      "channels": 27
+    },
+    {
+      "week": "2026-09-28",
+      "channels": 64
+    },
+    {
+      "week": "2026-10-05",
+      "channels": 90
+    },
+    {
+      "week": "2026-10-12",
+      "channels": 66
+    },
+    {
+      "week": "2026-10-19",
+      "channels": 71
+    },
+    {
+      "week": "2026-10-26",
+      "channels": 101
+    },
+    {
+      "week": "2026-11-02",
+      "channels": 89
+    }
+  ],
+  "instructions": {
+    "open": 2464,
+    "settle": 8647,
+    "topUp": 3053,
+    "settleAndSeal": 2281,
+    "requestClose": 25,
+    "seal": 21,
+    "distribute": 3822,
+    "withdrawPayer": 2,
+    "reclaim": 1773
+  },
+  "channelsWithFeeRecipient": 141,
+  "sampleTrajectory": {
+    "payer": "83Az…zb4N",
+    "channels": 23,
+    "vendors": [
+      "5JRt…XE5S",
+      "2Xxz…6YiZ",
+      "8g9Y…mCtT",
+      "BXmp…47Lf",
+      "Drc9…xY1f",
+      "BgHH…ob8k",
+      "yeSo…CLyv",
+      "HBBJ…exBo",
+      "3ru1…cpoU",
+      "BXPK…MjP3",
+      "Ahmb…LcBz",
+      "BLcM…VGzw"
+    ],
+    "firstContactOrder": [
+      "5JRt…XE5S",
+      "2Xxz…6YiZ",
+      "8g9Y…mCtT",
+      "BXmp…47Lf",
+      "Drc9…xY1f",
+      "BgHH…ob8k",
+      "yeSo…CLyv",
+      "HBBJ…exBo",
+      "3ru1…cpoU",
+      "BXPK…MjP3",
+      "Ahmb…LcBz",
+      "BLcM…VGzw"
+    ],
+    "spendPerVendor": {
+      "5JRt…XE5S": "218370",
+      "2Xxz…6YiZ": "1740",
+      "8g9Y…mCtT": "29380",
+      "BXmp…47Lf": "8700",
+      "Drc9…xY1f": "7830",
+      "BgHH…ob8k": "3480",
+      "yeSo…CLyv": "2610",
+      "HBBJ…exBo": "80910",
+      "3ru1…cpoU": "1740",
+      "BXPK…MjP3": "87000",
+      "Ahmb…LcBz": "870",
+      "BLcM…VGzw": "870"
+    },
+    "settlementTimes": [
+      1788843671,
+      1788992882,
+      1789101361,
+      1789101361,
+      1789102500,
+      1789103400,
+      1789130280,
+      1789130940,
+      1789141140,
+      1789141380,
+      1789143360,
+      1789143480,
+      1789144920,
+      1789145580,
+      1790215502,
+      1790270701,
+      1791571981,
+      1791576900,
+      1791584941,
+      1792613821,
+      1793167381,
+      1793749201
+    ],
+    "edges": 0
+  },
+  "x402scan": {
+    "exactTransfers": null,
+    "source": "x402scan (Merit Systems), https://www.x402scan.com/networks and https://github.com/Merit-Systems/x402scan, read 7 Nov 2026",
+    "note": "x402scan documents no public export or API for Solana x402 transfers. Its Networks page showed 26,182 x402 transactions on Solana in the past 24 hours (5 facilitators, 428 sellers, 123 buyers) on 7 Nov 2026, not broken out by scheme, so the exact-scheme per-call transfer count is absent rather than estimated."
+  }
+}
