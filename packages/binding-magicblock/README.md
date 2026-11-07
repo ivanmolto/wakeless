@@ -11,14 +11,17 @@ import { MagicBlockBinding } from "@wakeless/binding-magicblock";
 
 const binding = await MagicBlockBinding.create({
   network: DEVNET_CAIP2,
-  baseRpcUrl: process.env.SOLANA_RPC_URL!,          // Helius devnet
+  baseRpcUrl: process.env.SOLANA_RPC_URL!, // Helius devnet
   teeRpcUrl: "https://devnet-tee.magicblock.app",
   paymentsApiUrl: "https://payments.magicblock.app",
   mint: usdcMint,
-  escrow: await createKeyPairFromBytes(bytes),
-  attestationReportPath: "docs/attestation-devnet.json",
+  escrow: await createKeyPairFromBytes(escrowKeypairBytes), // 64-byte Solana keypair
+  attestationReportPath: "attestation-devnet.json", // written verified or not
 });
+console.log(binding.escrowAddress(), await binding.privateBalance());
 ```
+
+`npm install @wakeless/binding-magicblock@0.1.0-alpha.0 @wakeless/binding@0.1.0-alpha.0 @solana/kit@8.6.0`. `@wakeless/binding` is a peer dependency. ESM only, Node 22 or later. Construction talks to the devnet TEE and refuses anything else, so this example needs devnet and a funded escrow key.
 
 ## What construction does
 

@@ -5,6 +5,22 @@ Status: devnet alpha, unaudited
 The `SettlementBinding` interface: what a Wakeless settlement pool must provide, typed with `@solana/kit` addresses and signatures and `bigint` base-unit amounts. `@wakeless/binding-magicblock` implements it; Rings and Privacy Cash bindings follow the same shape. Nothing outside a `packages/binding-*` package may import a privacy primitive directly; an eslint rule enforces it.
 
 ```ts
+import { BINDING_ERROR_CODES, clientRefId, isBindingError, type SettlementBinding } from "@wakeless/binding";
+
+// Program against the interface; a binding package builds the instance (MagicBlockBinding.create on devnet).
+export async function refundBuyer(binding: SettlementBinding, buyer: Parameters<SettlementBinding["refund"]>[0], owed: bigint, ref: string) {
+  try {
+    return { refunded: owed, sig: (await binding.refund(buyer, owed, { id: clientRefId(ref) })).sig };
+  } catch (error) {
+    if (isBindingError(error, BINDING_ERROR_CODES.bindingRejected)) return { refunded: 0n, stillOwed: owed }; // never retried publicly
+    throw error;
+  }
+}
+```
+
+`npm install @wakeless/binding@0.1.0-alpha.0`. ESM only, Node 22 or later. Types only plus the error and reference helpers; it moves nothing by itself.
+
+```ts
 interface SettlementBinding {
   id: "magicblock" | "rings" | "privacycash";
   network(): Caip2;

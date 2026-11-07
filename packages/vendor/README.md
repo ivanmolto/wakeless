@@ -9,18 +9,16 @@ import { Hono } from "hono";
 import { x402Shielded } from "@wakeless/vendor";
 
 const app = new Hono();
-app.use(
-  "*",
-  x402Shielded({
-    facilitatorUrl: "http://127.0.0.1:4020",
-    payTo: vendorAddress,
-    amountPerRoute: { "/price/:symbol": "1000" }, // atomic units; :name is one segment, * the rest
-    maxTimeoutSeconds: 60,
-    alsoAcceptPublic: false,
-  }),
-);
-app.get("/price/:symbol", (c) => c.json({ price: 1 }));
+app.use("*", x402Shielded({
+  facilitatorUrl: process.env.FACILITATOR_URL ?? "http://127.0.0.1:4020",
+  payTo: vendorAddress, // base58; needs one private deposit of its own on the rail (below)
+  amountPerRoute: { "/price/:symbol": "1000" }, // atomic units; :name is one segment, * the rest
+  maxTimeoutSeconds: 60,
+}));
+app.get("/price/:symbol", (c) => c.json({ symbol: c.req.param("symbol"), price: 1 }));
 ```
+
+`npm install @wakeless/vendor@0.1.0-alpha.0 hono@4.13.14`. ESM only, Node 22 or later. Serve `app` with any Hono adapter (`@hono/node-server` in this repo).
 
 `asset` (devnet USDC), `tokenProgram` (SPL Token), `withdrawDelay` (3600), `minDeposit` (100 times the route's price) and `facilitatorTimeoutMs` (15000) are optional and have those defaults. A path that matches no key in `amountPerRoute` passes through free.
 

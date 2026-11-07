@@ -7,6 +7,24 @@ The buyer side of the `batch-settlement-shielded` scheme: a `fetch` that pays. O
 ```ts
 import { wrapFetchWithWakeless } from "@wakeless/client";
 
+// buyerKeypair: 64-byte Solana keypair (or 32-byte seed); signs vouchers, never sent.
+// rail: a BuyerBinding. Leave it out and the client builds MagicBlockBuyer on devnet, TEE attestation first.
+const pay = wrapFetchWithWakeless(fetch, { buyerKeypair, rail, channelStoreLocal: "./channels.json" });
+const vendor = process.env.VENDOR_URL ?? "http://127.0.0.1:4021";
+
+const first = await pay(`${vendor}/price/SOL`); // 402 → one private deposit → 200
+const second = await pay(`${vendor}/price/SOL`); // 402 → voucher → 200, no chain touched
+console.log(first.status, second.status, await second.json());
+console.log(pay.getTrajectory().map((entry) => entry.cumulative)); // what this buyer paid, cumulative
+```
+
+`npm install @wakeless/client@0.1.0-alpha.0 @wakeless/binding@0.1.0-alpha.0`. `@wakeless/binding` is a peer dependency. ESM only, Node 22 or later. The package also installs the `wakeless` command (below).
+
+With every option spelled out and the default rail:
+
+```ts
+import { wrapFetchWithWakeless } from "@wakeless/client";
+
 const pay = wrapFetchWithWakeless(fetch, {
   buyerKeypair,                       // 64-byte Solana keypair (or 32-byte seed); signs vouchers, never sent
   paymentsApi: "https://payments.magicblock.app",
@@ -40,6 +58,22 @@ const outcome = await pay.close(channelId); // needs facilitatorUrl; { state: "c
 A closing or closed channel takes no more vouchers; paying that vendor again opens a new channel, and the closed record stays in the file. `close()` needs the accept the channel last paid under (kept in the file since this task) and no deposit pending; otherwise it throws `shielded_client_close_unconfigured`, and a facilitator refusal is `shielded_client_close_refused` with the facilitator's code in the message.
 
 ## Funding from another chain: `wakeless fund`
+
+```bash
+npx wakeless fund --from base --amount 2 --confirm "$DEMO_CONFIRM"
+```
+
+| Flag | Required | Meaning |
+| --- | --- | --- |
+| `--from <chain>` | yes | Origin chain: `base`, `near`, `arbitrum`, `ethereum`, or an Aurora `blockchain` id |
+| `--amount <usdc>` | yes | Whole USDC, at most `FUND_MAX_USDC` (default 5); a fraction is warned about |
+| `--to <solana address>` | no | Recipient; defaults to the public half of `MAINNET_BUYER_KEYPAIR` (`keys/mainnet/buyer.json`), the only half read |
+| `--refund-to <origin address>` | no | Where Aurora refunds on the origin chain; defaults to `FUND_REFUND_TO` in `.env` |
+| `--confirm <DEMO_CONFIRM>` | for any spend | Must equal `DEMO_CONFIRM` in `.env` |
+| `--no-wait` | no | Skip the randomised 2 to 10 minute delay before the channel deposit step |
+| `--help` | no | Print the usage and exit 0 |
+
+It reads `.env` in the current directory and needs `FUNDING=aurora`, `MAINNET_ENABLED=true`, `DEMO_CONFIRM` and `AURORA_API_KEY` there; without them it refuses before sending anything. Exit codes: 0 on `SUCCESS` or `REFUNDED`, 1 on `FAILED` or a polling timeout, 2 when refused before anything was sent.
 
 `wakeless fund --from <chain> --amount <usdc> [--to <solana address>] [--refund-to <origin address>] [--confirm <DEMO_CONFIRM>] [--no-wait]` (task 8.3; `pnpm fund` in the repo) funds a buyer address with USDC from Base, NEAR, Arbitrum or another chain Aurora lists, through Aurora Intents in confidential mode: one quote with `confidentiality: "advanced"` whose asset ids come from Aurora's supported-tokens endpoint, the deposit address printed for the operator to pay from the origin wallet, then the status polled (5 s backing off to 30 s, stopping at the refund deadline plus five minutes) until `SUCCESS` (exit 0; the arrival is recorded in the channel file's trajectory as `fundingSource: {originChain, amount, solanaArrivalSignature}` and the channel deposit step follows a randomised 2 to 10 minute delay, skipped with `--no-wait`), `REFUNDED` (exit 0, the refund printed) or `FAILED` (exit 1, the API's message printed). Mainnet only and off by default: it refuses unless `FUNDING=aurora`, `MAINNET_ENABLED=true` and `--confirm` equals `DEMO_CONFIRM` in `.env`, and `--amount` is capped at `FUND_MAX_USDC` (default 5). Whole USDC by default; a fraction is warned about. It loads no keypair (`--to` defaults to the public half of `MAINNET_BUYER_KEYPAIR`), makes no Solana RPC call, and never prints the API key or a whole signature. What confidential mode hides and does not, the edge-correlation caveat and the exact commands are in `docs/FUNDING.md`.
 

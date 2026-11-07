@@ -5,14 +5,19 @@ Status: devnet alpha, unaudited
 Types and pure functions of the x402 `batch-settlement-shielded` scheme: the `accepts[]` entry and its `extra`, the `deposit` and `voucher` payloads, `SettlementResponse`, the error codes, the 50-byte voucher message with Ed25519 sign and verify, the channel id and `clientRefId` derivations, and the watermark rule. No network, no I/O, no privacy primitive; `docs/SCHEME.md` is the reference and names the spec lines.
 
 ```ts
-import { deriveChannelId, clientRefOf, signVoucher, verifyVoucher, nextWatermark } from "@wakeless/scheme";
+import { clientRefOf, deriveChannelId, nextWatermark, publicKeyOf, signVoucher, verifyVoucher } from "@wakeless/scheme";
 
+// buyerKeypair: 64-byte Solana keypair (or 32-byte seed); escrowAddress: the 402's extra.escrowAddress; mint: its asset
+const buyer = publicKeyOf({ secretKey: buyerKeypair });
 const channelId = deriveChannelId({ buyer, escrowAddress, mint, salt: "7" });
 const clientRefId = clientRefOf(channelId); // decimal u64, the private transfer's reference
-const voucher = signVoucher(buyerKeypair, { channelId, maxClaimableAmount: "1001", expiresAt: 0 });
-verifyVoucher(buyer, voucher); // true
-nextWatermark(0n, voucher, 1000n, 100_000n); // { ok: true, watermark: 1001n }
+const voucher = signVoucher({ secretKey: buyerKeypair }, { channelId, maxClaimableAmount: "1001", expiresAt: 0 });
+console.log(verifyVoucher(buyer, voucher)); // true
+console.log(nextWatermark(0n, voucher, 1000n, 100_000n)); // { ok: true, watermark: 1001n }
+console.log(clientRefId.length <= 20); // true: digits only, fits a u64
 ```
+
+`npm install @wakeless/scheme@0.1.0-alpha.0`. ESM only, Node 22 or later.
 
 ## Voucher message
 
