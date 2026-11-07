@@ -416,7 +416,7 @@ describe("admin and receipt routes", () => {
 
     const all = await get(h.app, "/admin/channels", ADMIN_TOKEN);
     expect(all.status).toBe(200);
-    expect((all.body.channels as { channelId: string }[]).map((c) => c.channelId)).toEqual([h.s.channelId, other.channelId].sort());
+    expect((all.body.channels as { channelId: string }[]).map((c) => c.channelId)).toEqual([h.s.channelId, other.channelId].sort((a, b) => a.localeCompare(b)));
     const mine = await get(h.app, `/admin/channels?vendor=${h.s.vendor}`, ADMIN_TOKEN);
     expect(mine.body).toEqual({ channels: [{ channelId: h.s.channelId, vendor: h.s.vendor, state: "open", accepted: "20020", settled: "20020", settle: { confirmed: 1, pending: 0, failed: 0, rejected: 0, lastPeriod: 1 } }] });
     expect((await get(h.app, `/admin/channels?vendor=${address()}`, ADMIN_TOKEN)).body).toEqual({ channels: [] });
