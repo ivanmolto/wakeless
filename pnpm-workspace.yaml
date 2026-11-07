@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - packages/watcher/web
   - scripts
 
 allowBuilds:

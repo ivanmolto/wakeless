@@ -25,13 +25,15 @@
     "client:20": "tsx --conditions=development scripts/client-20.ts",
     "agent-run": "tsx --conditions=development scripts/agent-run.ts",
     "watcher": "tsx --conditions=development scripts/watcher.ts",
-    "side-by-side": "tsx --conditions=development scripts/side-by-side.ts"
+    "side-by-side": "tsx --conditions=development scripts/side-by-side.ts",
+    "watcher:web": "pnpm --filter @wakeless/watcher-web dev"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "22.20.5",
     "eslint": "10.13.0",
     "fast-check": "4.10.2",
+    "happy-dom": "21.0.4",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.1",

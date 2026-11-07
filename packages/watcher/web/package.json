@@ -1,0 +1,16 @@
+{
+  "name": "@wakeless/watcher-web",
+  "version": "0.0.0",
+  "description": "The side-by-side page: what the chain sees on each rail, what an observer rebuilt, and what the owner sees. Devnet alpha, unaudited.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "8.3.5"
+  }
+}
