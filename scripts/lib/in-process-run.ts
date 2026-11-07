@@ -119,6 +119,8 @@ export interface InProcessRun {
   watcherReport(): Promise<ObserverReport>;
   /** Throws if a log line carries a signature or a bearer token. */
   assertLogsClean(): void;
+  /** The facilitator's log lines so far: ids, codes and error names, never an amount or a signature. */
+  readonly facilitatorLog: readonly string[];
   close(): Promise<void>;
 }
 
@@ -239,6 +241,7 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
           if (/[1-9A-HJ-NP-Za-km-z]{87,88}/.test(line) || /bearer/i.test(line)) throw new Error("a log line carries a signature or a token");
         }
       },
+      facilitatorLog,
       close,
     };
   } catch (error) {

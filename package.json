@@ -24,7 +24,8 @@
     "vendor:receipts": "tsx --conditions=development scripts/vendor-receipts.ts",
     "client:20": "tsx --conditions=development scripts/client-20.ts",
     "agent-run": "tsx --conditions=development scripts/agent-run.ts",
-    "watcher": "tsx --conditions=development scripts/watcher.ts"
+    "watcher": "tsx --conditions=development scripts/watcher.ts",
+    "side-by-side": "tsx --conditions=development scripts/side-by-side.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
