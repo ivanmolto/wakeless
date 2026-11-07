@@ -1,7 +1,7 @@
 import type { Address } from "@solana/kit";
 import type { ObserverReport, Reconstruction, Trajectory } from "@wakeless/watcher";
 import { describe, expect, it } from "vitest";
-import { differenceParagraph, headlineOf, labelPublicTransaction, perCall, renderSideBySide, sideBySideJson, verdicts, type RailRun, type SideBySideInput } from "../lib/side-by-side-doc.js";
+import { differenceParagraph, headlineOf, labelPublicTransaction, perCall, renderSideBySide, sideBySideJson, TRUST_BOUNDARY, verdicts, type RailRun, type SideBySideInput } from "../lib/side-by-side-doc.js";
 
 const PAYER = "94BRf9UjVLdNUBGGeKuFqWSk4sA67EDtAmS9pm6RTjzT" as Address;
 const V = ["9JD9k3HdkZbPubKbJYBtCbfrQQeGZUKvdezmEJ9LfPgy", "6ZyZr5kfZ924Fv6ZmU6Mrji67L6XhhhReCCvFs47srrQ", "GJZXBks8C3edcBCdE6Se9qQiFsBBGDMMvLTWM4YYUwS6"] as Address[];
@@ -147,6 +147,13 @@ describe("renderSideBySide", () => {
     expect(json.public.comparison.vendorsRecovered).toBe(3);
     expect(json.wakeless.comparison.vendorsRecovered).toBe(0);
     expect(json.public.actual.spendPerVendor[V[0]!]).toBe("100000");
+  });
+
+  it("the JSON carries the difference paragraph and the trust boundary, for the watcher's web page", () => {
+    const json = JSON.parse(sideBySideJson(good)) as { difference: string; trustBoundary: string };
+    expect(json.difference).toBe(differenceParagraph(good));
+    expect(json.trustBoundary).toBe(TRUST_BOUNDARY);
+    for (const operator of ["the facilitator", "MagicBlock's enclave", "NEAR's private shard"]) expect(json.trustBoundary).toContain(operator);
   });
 });
 

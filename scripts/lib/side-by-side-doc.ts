@@ -147,6 +147,10 @@ function shortAddress(a: Address | string): string {
   return `${a.slice(0, 4)}…${a.slice(-4)}`;
 }
 
+/** The trust boundary, one sentence, the three operators named (CLAUDE.md, Privacy rules). Read by the watcher's web page from the JSON. */
+export const TRUST_BOUNDARY =
+  "The privacy claim is against the public ledger, not against the operators: the facilitator sees the vouchers and the channels, MagicBlock's enclave sees the private transfers, and NEAR's private shard sees a funding's origin and route when a channel is funded through Aurora; each of the three sees inside, and none of what they see reaches the ledger.";
+
 /** The plain-English paragraph: the difference, what the base layer shows for Wakeless, what remains, the trust boundary. */
 export function differenceParagraph(input: SideBySideInput): string {
   const p = headlineOf(input.publicRail);
@@ -166,7 +170,7 @@ export function differenceParagraph(input: SideBySideInput): string {
       ? `For Wakeless the base layer shows vault deposits and withdrawals only, and the run itself added none: every deposit and every redemption the enclave accepted was a private transfer inside MagicBlock's Private Ephemeral Rollup, and a redemption it refused moved nothing, so the ledger holds ${vault}.`
       : `For Wakeless the base layer should show vault deposits and withdrawals only, but this run put ${w.railTransactions} rail transactions there, which is a failure of the rail and is reported as one.`,
     recoverable,
-    "The privacy claim is against the public ledger, not against the operators: the facilitator sees the vouchers and the channels, MagicBlock's enclave sees the private transfers, and NEAR's private shard sees a funding's origin and route when a channel is funded through Aurora; each of the three sees inside, and none of what they see reaches the ledger.",
+    TRUST_BOUNDARY,
   ].join(" ");
 }
 
@@ -210,7 +214,21 @@ function railJson(run: RailRun): unknown {
 }
 
 export function sideBySideJson(input: SideBySideInput): string {
-  return JSON.stringify({ date: input.date, workload: input.workload, ...(input.publicFallback === undefined ? {} : { publicFallback: input.publicFallback }), public: railJson(input.publicRail), wakeless: railJson(input.wakeless) }, null, 2) + "\n";
+  return (
+    JSON.stringify(
+      {
+        date: input.date,
+        workload: input.workload,
+        ...(input.publicFallback === undefined ? {} : { publicFallback: input.publicFallback }),
+        difference: differenceParagraph(input),
+        trustBoundary: TRUST_BOUNDARY,
+        public: railJson(input.publicRail),
+        wakeless: railJson(input.wakeless),
+      },
+      null,
+      2,
+    ) + "\n"
+  );
 }
 
 /** The script's two asserted titles, each with what failed; empty lists pass. */
