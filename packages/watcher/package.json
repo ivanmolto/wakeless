@@ -10,6 +10,11 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./leak": {
+      "development": "./src/leak/index.ts",
+      "types": "./dist/leak/index.d.ts",
+      "import": "./dist/leak/index.js"
     }
   },
   "files": [

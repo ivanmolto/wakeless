@@ -114,12 +114,25 @@ function entries(r: Reader): DistributionEntry[] {
   return list;
 }
 
-/** `open` arguments, or null when the data is not an `open`. */
-export function decodeOpen(data: Uint8Array | null): { salt: bigint; deposit: bigint; gracePeriod: number; openSlot: bigint; recipients: DistributionEntry[] } | null {
+/**
+ * `open` arguments, or null when the data is not an `open`. Two layouts: the IDL's (salt,
+ * deposit, gracePeriod, openSlot, recipients) and the one the program used before `openSlot`
+ * existed (mainnet opens of June and July 2026), which yields `openSlot: null`. Each layout
+ * must consume the data exactly, so neither can be read as the other.
+ */
+export function decodeOpen(data: Uint8Array | null): { salt: bigint; deposit: bigint; gracePeriod: number; openSlot: bigint | null; recipients: DistributionEntry[] } | null {
   if (data === null || data[0] !== DISCRIMINATOR.open) return null;
   try {
     const r = new Reader(data.subarray(1));
-    return { salt: r.u64(), deposit: r.u64(), gracePeriod: r.u32(), openSlot: r.u64(), recipients: entries(r) };
+    const open = { salt: r.u64(), deposit: r.u64(), gracePeriod: r.u32(), openSlot: r.u64(), recipients: entries(r) };
+    if (r.remaining === 0) return open;
+  } catch {
+    // Not the IDL's layout; try the earlier one.
+  }
+  try {
+    const r = new Reader(data.subarray(1));
+    const open = { salt: r.u64(), deposit: r.u64(), gracePeriod: r.u32(), openSlot: null, recipients: entries(r) };
+    return r.remaining === 0 ? open : null;
   } catch {
     return null;
   }
