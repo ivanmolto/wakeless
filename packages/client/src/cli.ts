@@ -4,8 +4,9 @@
 // directory, loads no keypair (the recipient is the public half of
 // MAINNET_BUYER_KEYPAIR when --to is not given), and runs `fund()`. Exit 0 on SUCCESS
 // and REFUNDED, 1 on FAILED or a polling timeout, 2 when refused before anything was sent.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseEnv } from "node:util";
 import { encodeBase58 } from "@wakeless/scheme";
 import { FUND_ERROR_CODES, FundRefusedError, fund, redactKey } from "./fund.js";
@@ -94,7 +95,8 @@ export async function main(argv: readonly string[], root: string = process.cwd()
   return outcome.exitCode;
 }
 
-const invokedDirectly = process.argv[1] !== undefined && import.meta.url === new URL(`file://${resolve(process.argv[1])}`).href;
+// realpath: npm installs the `wakeless` bin as a symlink, and import.meta.url names the real file.
+const invokedDirectly = process.argv[1] !== undefined && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 if (invokedDirectly) {
   main(process.argv.slice(2)).then(
     (code) => {
