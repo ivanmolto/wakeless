@@ -43,6 +43,13 @@ export function installLine(file: string): string {
   return code.value;
 }
 
+/** The version the published packages are at, read from `packages/scheme/package.json` (the five are released together). */
+export function publishedVersion(): string {
+  const pkg = JSON.parse(readFileSync(join(ROOT, "packages/scheme/package.json"), "utf8")) as { version?: unknown };
+  if (typeof pkg.version !== "string" || pkg.version.length === 0) throw new Error("packages/scheme/package.json has no version");
+  return pkg.version;
+}
+
 /** The snapshot date `docs/LEAKAGE.md` states in its first line ("Snapshot **YYYY-MM-DD**"). */
 export function leakageSnapshotDate(): string {
   const text = readFileSync(join(ROOT, "docs/LEAKAGE.md"), "utf8");
@@ -100,7 +107,7 @@ export const PAGES: Page[] = [
       return [
         { from: README, nodes: section(readTree(README), "Quickstart", false) },
         heading("Install the packages"),
-        { mdx: "From npm, outside this repo (`0.1.0-alpha.0`, ESM only, Node 22 or later):" },
+        { mdx: `From npm, outside this repo (\`${publishedVersion()}\`, ESM only, Node 22 or later):` },
         { mdx: "```bash\n" + installs.join("\n") + "\n```" },
       ];
     },
