@@ -13,6 +13,7 @@
     "@wakeless/client": "workspace:*",
     "@wakeless/facilitator": "workspace:*",
     "@wakeless/scheme": "workspace:*",
+    "@wakeless/vendor": "workspace:*",
     "@wakeless/vendors": "workspace:*",
     "@wakeless/watcher": "workspace:*"
   }

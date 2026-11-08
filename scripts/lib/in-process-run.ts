@@ -16,7 +16,8 @@ import { MagicBlockBinding, MagicBlockBuyer } from "@wakeless/binding-magicblock
 import { wrapFetchWithWakeless } from "@wakeless/client";
 import { createDepositHandler, createFacilitatorApp, createMemoryStores, createRedeemer, type CloseRunSummary, type RedeemRunSummary, type Stores } from "@wakeless/facilitator";
 import { publicKeyOf } from "@wakeless/scheme";
-import { VENDORS, startVendors, type RunningVendors } from "@wakeless/vendors";
+import type { TermsOptions } from "@wakeless/vendor";
+import { VENDORS, startVendors, type RunningVendors, type VendorDefinition } from "@wakeless/vendors";
 import { createDevnetReader, observe, type ObserverReport, type SignatureInput } from "@wakeless/watcher";
 import { assertDevnetRpcUrl } from "./devnet.js";
 import { loadDotEnv } from "./env.js";
@@ -89,9 +90,39 @@ export function isVisibleOnBaseLayer(view: ObserverView): boolean {
   return view.onBaseLayer || view.memoText.length > 0 || view.plaintextRecipients.length > 0;
 }
 
+/** Another buyer in the same run (task 12.1T's fresh buyer): its own key, rail login and channel file. */
+export interface ExtraBuyerSpec {
+  readonly name: string;
+  readonly keyBytes: Uint8Array;
+}
+
+export interface ExtraBuyer {
+  readonly name: string;
+  readonly address: string;
+  readonly pay: ReturnType<typeof wrapFetchWithWakeless>;
+  readonly balanceBefore: bigint;
+  privateBalance(): Promise<bigint>;
+}
+
+export interface InProcessRunOptions {
+  /** Each vendor's relationship-terms layer, when the flag is on (task 12.1T). Default: none, the vendors as `pnpm e2e` runs them. */
+  readonly vendorTerms?: (name: VendorDefinition["name"], payTo: string) => TermsOptions | undefined;
+  /** The private balance every buyer must hold before anything is spent. Default: the three channel deposits at 100 × price. */
+  readonly minPrivateBalance?: bigint;
+  readonly extraBuyers?: readonly ExtraBuyerSpec[];
+  /**
+   * Sees every response a buyer's fetch gets, by buyer name (`"buyer"` for the primary), for
+   * recording 402 headers. Headers only: the body belongs to the client, and reading or cloning
+   * it here stalls the payment.
+   */
+  readonly onResponse?: (buyer: string, response: Response) => void;
+}
+
 export interface InProcessRun {
   readonly vendors: RunningVendors;
   readonly pay: ReturnType<typeof wrapFetchWithWakeless>;
+  readonly buyerAddress: string;
+  readonly extraBuyers: readonly ExtraBuyer[];
   readonly facilitatorUrl: string;
   readonly stores: Stores;
   /** The receipt signer's public key, as `/supported` `signers` lists it. */
@@ -124,7 +155,7 @@ export interface InProcessRun {
   close(): Promise<void>;
 }
 
-export async function startInProcessRun(label: string): Promise<InProcessRun> {
+export async function startInProcessRun(label: string, options: InProcessRunOptions = {}): Promise<InProcessRun> {
   loadDotEnv(ROOT);
   if (process.env.MAINNET_ENABLED === "true") throw new Error("MAINNET_ENABLED is not honoured here: this script runs on devnet only");
   const baseRpcUrl = required("SOLANA_RPC_URL");
@@ -172,7 +203,10 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
 
   // The three vendors, each on its own keypair's public key.
   const vendors = await startVendors(
-    vendorKeys.map(({ definition, payTo }) => ({ definition, payTo, port: 0 })),
+    vendorKeys.map(({ definition, payTo }) => {
+      const terms = options.vendorTerms?.(definition.name, payTo);
+      return { definition, payTo, port: 0, ...(terms === undefined ? {} : { terms }) };
+    }),
     { facilitatorUrl: facilitator.url, seed: process.env.VENDORS_SEED || "wakeless" },
   );
 
@@ -185,21 +219,46 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
     // The buyer: the real rail, attested once here, counted.
     const buyerKeypair = keyBytes("BUYER_KEYPAIR", "keys/buyer.json");
     const buyerRail = await MagicBlockBuyer.create({ ...common, buyer: await createKeyPairFromBytes(buyerKeypair), attestationReportPath: resolve(ROOT, "docs/attestation-client.json") });
-    const need = VENDORS.reduce((sum, v) => sum + BigInt(v.amount) * 100n, 0n);
+    const need = options.minPrivateBalance ?? VENDORS.reduce((sum, v) => sum + BigInt(v.amount) * 100n, 0n);
     const balanceBefore = await buyerRail.privateBalance();
     if (balanceBefore < need) {
-      throw new Error(`the buyer's private balance is below the three deposits (${Number(need) / 1e6} USDC); fund it with POST /v1/spl/deposit (private: true) first`);
+      throw new Error(`the buyer's private balance is below what the run needs (${Number(need) / 1e6} USDC); fund it with pnpm fund:private --role buyer first`);
     }
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const channelStoreLocal = resolve(homedir(), ".wakeless", `${label}-${stamp}.json`);
     const clientLog: string[] = [];
-    const pay = wrapFetchWithWakeless(fetch, { buyerKeypair, rail: countedBuyer(buyerRail, emitted), channelStoreLocal, facilitatorUrl: facilitator.url, log: (line) => clientLog.push(line) });
+    const seenBy = (name: string): typeof fetch =>
+      options.onResponse === undefined
+        ? fetch
+        : (async (input, init) => {
+            const response = await fetch(input, init);
+            options.onResponse!(name, response);
+            return response;
+          }) as typeof fetch;
+    const pay = wrapFetchWithWakeless(seenBy("buyer"), { buyerKeypair, rail: countedBuyer(buyerRail, emitted), channelStoreLocal, facilitatorUrl: facilitator.url, log: (line) => clientLog.push(line) });
     const buyerAddress = address(publicKeyOf({ secretKey: buyerKeypair }));
     const readBaseLayer = createDevnetReader(baseRpcUrl);
+
+    // Other buyers (task 12.1T): each attests its own rail login; its attestation report stays private under ~/.wakeless.
+    const extraBuyers: ExtraBuyer[] = [];
+    for (const spec of options.extraBuyers ?? []) {
+      const extraRail = await MagicBlockBuyer.create({ ...common, buyer: await createKeyPairFromBytes(spec.keyBytes), attestationReportPath: resolve(homedir(), ".wakeless", `attestation-${spec.name}.json`) });
+      const extraBalance = await extraRail.privateBalance();
+      if (extraBalance < need) throw new Error(`${spec.name}'s private balance is below what the run needs (${Number(need) / 1e6} USDC); fund it with pnpm fund:private --keypair <its file> first`);
+      extraBuyers.push({
+        name: spec.name,
+        address: publicKeyOf({ secretKey: spec.keyBytes }),
+        pay: wrapFetchWithWakeless(seenBy(spec.name), { buyerKeypair: spec.keyBytes, rail: countedBuyer(extraRail, emitted), channelStoreLocal: resolve(homedir(), ".wakeless", `${label}-${spec.name}-${stamp}.json`), facilitatorUrl: facilitator.url, log: (line) => clientLog.push(line) }),
+        balanceBefore: extraBalance,
+        privateBalance: () => extraRail.privateBalance(),
+      });
+    }
 
     return {
       vendors,
       pay,
+      buyerAddress,
+      extraBuyers,
       facilitatorUrl: facilitator.url,
       stores,
       receiptSigner: redeemer.signer,
@@ -219,7 +278,7 @@ export async function startInProcessRun(label: string): Promise<InProcessRun> {
         return visible;
       },
       watcherReport() {
-        const trajectory = pay.getTrajectory();
+        const trajectory = [...pay.getTrajectory(), ...extraBuyers.flatMap((b) => b.pay.getTrajectory())];
         const amounts = new Set<bigint>();
         for (const entry of trajectory) {
           for (const value of [entry.amount, entry.cumulative, entry.deposit]) if (value !== undefined && /^[1-9][0-9]*$/.test(value)) amounts.add(BigInt(value));

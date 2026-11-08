@@ -43,10 +43,12 @@ function required(name: string): string {
 }
 
 async function main(): Promise<void> {
+  // `--keypair <path>` (task 12.1T) funds a key outside the roles, such as the terms demo's fresh buyer.
   const role = KEY_ROLES.find((r) => r.name === arg("role") && r.name !== "facilitator");
+  const keypairArg = arg("keypair");
   const usdc = Number(arg("usdc"));
-  if (role === undefined || !Number.isFinite(usdc) || usdc <= 0 || usdc > MAX_USDC) {
-    throw new Error(`usage: pnpm fund:private --role <buyer|escrow|vendor1|vendor2|vendor3> --usdc <0 < n <= ${MAX_USDC}>`);
+  if ((role === undefined && keypairArg === undefined) || !Number.isFinite(usdc) || usdc <= 0 || usdc > MAX_USDC) {
+    throw new Error(`usage: pnpm fund:private (--role <buyer|escrow|vendor1|vendor2|vendor3> | --keypair <path under keys/>) --usdc <0 < n <= ${MAX_USDC}>`);
   }
   const amount = BigInt(Math.round(usdc * Number(USDC)));
 
@@ -58,8 +60,9 @@ async function main(): Promise<void> {
   if (/mainnet/i.test(new URL(paymentsApi).hostname)) throw new Error("Refusing a mainnet Payments API");
   const mint = address(required("USDC_MINT"));
 
-  const keyPath = resolve(ROOT, process.env[role.envVar] || `keys/${role.name}.json`);
+  const keyPath = role === undefined ? resolve(ROOT, keypairArg!) : resolve(ROOT, process.env[role.envVar] || `keys/${role.name}.json`);
   assertNotMainnetKeyPath(keyPath);
+  if (role === undefined && !keyPath.startsWith(resolve(ROOT, "keys") + "/")) throw new Error("--keypair must name a file under keys/");
   const keyPair = await createKeyPairFromBytes(Uint8Array.from(JSON.parse(readFileSync(keyPath, "utf8")) as number[]));
   const owner = await getAddressFromPublicKey(keyPair.publicKey);
 
@@ -83,7 +86,7 @@ async function main(): Promise<void> {
   const privateBalance = async () => BigInt((await api<{ balance: string }>("GET", `/v1/spl/private-balance?address=${owner}&mint=${mint}&cluster=${API_CLUSTER}`, undefined, token)).balance);
 
   const before = await privateBalance();
-  console.log(`${role.name} ${owner}`);
+  console.log(`${role?.name ?? keyPath.replace(ROOT + "/", "")} ${owner}`);
   console.log(`private balance before: ${Number(before) / Number(USDC)} USDC`);
 
   const built = await api<{ transactionBase64: string; sendTo: string; requiredSigners: string[]; lastValidBlockHeight: number }>("POST", "/v1/spl/deposit", {

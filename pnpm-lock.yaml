@@ -303,6 +303,9 @@ importers:
       '@wakeless/scheme':
         specifier: workspace:*
         version: link:../packages/scheme
+      '@wakeless/vendor':
+        specifier: workspace:*
+        version: link:../packages/vendor
       '@wakeless/vendors':
         specifier: workspace:*
         version: link:../packages/vendors
