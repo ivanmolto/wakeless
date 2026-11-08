@@ -58,6 +58,12 @@ export const SCHEME_ERROR_CODES = {
 
   /** Seller side: the facilitator did not answer, so the request fails closed with a 402. */
   facilitatorUnavailable: "shielded_facilitator_unavailable",
+  /**
+   * Seller side (task 12.1T, `RELATIONSHIP_TERMS`): the buyer paid against the route's
+   * standard terms, and this buyer's terms differ. The 402 carries the buyer's entry with
+   * its signed terms receipt; the buyer pays once more against it. The facilitator is not asked.
+   */
+  shieldedTermsQuoted: "shielded_terms_quoted",
 } as const;
 
 export type SchemeErrorCode = (typeof SCHEME_ERROR_CODES)[keyof typeof SCHEME_ERROR_CODES];

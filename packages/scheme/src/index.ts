@@ -58,6 +58,7 @@ export {
   verifyReceipt,
   type UnsignedReceipt,
 } from "./receipt.js";
+export { signMessage, verifyMessage } from "./sign.js";
 export { U64_MAX, parseU64 } from "./u64.js";
 export {
   VOUCHER_MAGIC,

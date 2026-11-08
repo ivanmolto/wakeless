@@ -45,6 +45,12 @@ export interface ShieldedExtra {
   /** Corrective 402 only. */
   readonly channelState?: ChannelState;
   readonly voucherState?: VoucherState;
+  /**
+   * Relationship terms (vendor middleware behind `RELATIONSHIP_TERMS`, task 12.1T): the
+   * vendor-signed account of this entry's `amount` and `minDeposit`. Opaque here; the
+   * vendor package defines and verifies it. Never forwarded to the facilitator.
+   */
+  readonly termsReceipt?: Readonly<Record<string, unknown>>;
 }
 
 /** One `accepts[]` entry (`specs/x402-specification-v2.md:L122`-`L130` with the shielded `extra`). */
