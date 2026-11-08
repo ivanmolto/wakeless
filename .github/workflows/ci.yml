@@ -1,0 +1,31 @@
+# Unit tests and the docs-site build on every push and pull request. Devnet-tagged tests are
+# skipped by `pnpm test`; tests that read a private working note skip with a printed reason,
+# since CI never has those files. Nothing here touches a network other than npm.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        # Version comes from `packageManager` in package.json.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm site:build
+      # The build-gated site tests (links, search, landing) run against the build above.
+      - run: pnpm vitest run packages/site
