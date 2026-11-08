@@ -58,6 +58,8 @@ describe("release dry run", () => {
       expect(manifest.engines).toEqual({ node: ">=22.13.0" }); // the root's floor
       expect(manifest.type).toBe("module");
       expect((manifest.scripts as Record<string, string> | undefined)?.prepublishOnly).toBeUndefined();
+      // devDependencies name @wakeless/facilitator, which is never published; the registry must not show them.
+      expect(manifest.devDependencies, pkg).toBeUndefined();
     }
   });
 

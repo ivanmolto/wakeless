@@ -20,7 +20,9 @@ for (const [i, entry] of packed.entries()) {
   for (const file of entry.files.filter((f) => !isAllowedFile(f))) problems.push(`${entry.name}: ${file} is neither dist nor README`);
   if (!entry.files.includes("README.md")) problems.push(`${entry.name}: no README.md`);
   if (!entry.files.some((f) => f.startsWith("dist/"))) problems.push(`${entry.name}: no dist/`);
-  for (const v of rangeViolations(packedManifest(tarball), { allowWorkspace: false })) problems.push(`${entry.name}: ${v} is not an exact version`);
+  const manifest = packedManifest(tarball);
+  for (const v of rangeViolations(manifest, { allowWorkspace: false })) problems.push(`${entry.name}: ${v} is not an exact version`);
+  if (manifest.devDependencies !== undefined) problems.push(`${entry.name}: devDependencies left in the published manifest`);
 }
 
 console.log(`\n${packed.length} tarballs in ${relative(REPO_ROOT, outDir)}/`);
@@ -32,3 +34,4 @@ if (problems.length > 0) {
 // npm refuses a prerelease version without --tag; `alpha` keeps it off `latest`.
 console.log("Nothing was published. To publish, after checking the scope, in dependency order:");
 for (const tarball of tarballs) console.log(`  npm publish --access public --tag alpha ${relative(REPO_ROOT, tarball)}`);
+console.log("or, in one sitting and resumable after a failure:  pnpm release:publish");

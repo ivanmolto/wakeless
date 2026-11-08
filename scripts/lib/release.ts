@@ -3,7 +3,8 @@
 // (`workspace:` specifiers pinned, `publishConfig.exports` applied); `npm pack --dry-run`
 // on each tarball then lists exactly what `npm publish <tarball>` would upload.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 export const RELEASE_VERSION = "0.1.0-alpha.0";
@@ -85,13 +86,36 @@ export function parseDryRun(stdout: string): PackedTarball[] {
   });
 }
 
-/** `pnpm pack` each package into `outDir`; returns the tarball paths in PUBLISHABLE order. */
+/**
+ * Removes `devDependencies` from the manifest inside a tarball. Consumers never install
+ * them, but the registry shows them, and ours name `@wakeless/facilitator`, which is not
+ * published. pnpm has no switch for this, so the tarball is unpacked, edited and repacked.
+ */
+export function stripDevDependencies(tarball: string): void {
+  const work = mkdtempSync(join(tmpdir(), "wakeless-strip-"));
+  try {
+    execFileSync("tar", ["-xzf", tarball, "-C", work], { stdio: "pipe" });
+    const manifestPath = join(work, "package", "package.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+    delete manifest.devDependencies;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    // Files only, sorted, from an explicit list: no directory entries, and COPYFILE_DISABLE
+    // keeps macOS tar from adding AppleDouble `._*` entries.
+    const files = execFileSync("find", ["package", "-type", "f"], { cwd: work, encoding: "utf8" }).split("\n").filter(Boolean).sort();
+    execFileSync("tar", ["-czf", tarball, "-C", work, "-T", "-"], { input: `${files.join("\n")}\n`, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, COPYFILE_DISABLE: "1" } });
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+/** `pnpm pack` each package into `outDir`, devDependencies stripped; tarball paths in PUBLISHABLE order. */
 export function packTarballs(outDir: string, root: string = REPO_ROOT): string[] {
   mkdirSync(outDir, { recursive: true });
   return PUBLISHABLE.map((pkg) => {
     execFileSync("pnpm", ["pack", "--pack-destination", outDir], { cwd: packageDir(pkg, root), stdio: "pipe" });
     const path = join(outDir, tarballName(pkg));
     if (!existsSync(path)) throw new Error(`pnpm pack wrote no ${tarballName(pkg)}`);
+    stripDevDependencies(path);
     return path;
   });
 }
