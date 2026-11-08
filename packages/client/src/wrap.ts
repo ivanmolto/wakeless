@@ -3,6 +3,7 @@
 // request after it is a signed cumulative voucher and touches no chain. The buyer key
 // signs vouchers here and the deposit inside the rail, and goes nowhere else.
 import { randomBytes } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { DEVNET_CAIP2, type BuyerBinding, type Caip2 } from "@wakeless/binding";
 import {
   SCHEME_ERROR_CODES,
@@ -129,6 +130,32 @@ function max(a: bigint, b: bigint): bigint {
   return a > b ? a : b;
 }
 
+/** The entry less its price, its funding requirement and what a terms or corrective 402 adds: the same route's offer under other terms. */
+function withoutTerms(entry: PaymentRequirements): unknown {
+  const { amount: _amount, extra, ...rest } = entry;
+  void _amount;
+  const { minDeposit: _min, termsReceipt: _terms, channelState: _cs, voucherState: _vs, ...kept } = extra;
+  void _min;
+  void _terms;
+  void _cs;
+  void _vs;
+  return { ...rest, extra: kept };
+}
+
+/**
+ * Terms this vendor quoted on an earlier call (`extra.termsReceipt`, task 12.1T), carried
+ * onto the fresh entry when the two differ only in price and funding requirement. The
+ * vendor corrects them with `shielded_terms_quoted` if they have changed since.
+ */
+function rememberedTerms(fresh: PaymentRequirements, remembered: PaymentRequirements | undefined): PaymentRequirements {
+  if (remembered?.extra.termsReceipt === undefined || !isDeepStrictEqual(withoutTerms(fresh), withoutTerms(remembered))) return fresh;
+  return {
+    ...fresh,
+    amount: remembered.amount,
+    extra: { ...fresh.extra, ...(remembered.extra.minDeposit === undefined ? {} : { minDeposit: remembered.extra.minDeposit }), termsReceipt: remembered.extra.termsReceipt },
+  };
+}
+
 /**
  * Wraps `fetchImpl`. The returned function makes the request; on a 402 whose
  * `accepts[]` lists a shielded entry this rail can serve, it pays and returns the
@@ -179,24 +206,17 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
 
   async function payUnderLock(base: Request, offered: readonly PaymentRequirements[]): Promise<Response> {
     const theRail = await rail();
-    const accept = offered.find((entry) => entry.extra.binding === theRail.id);
-    if (accept === undefined) {
+    const fresh = offered.find((entry) => entry.extra.binding === theRail.id);
+    if (fresh === undefined) {
       throw new WakelessClientError(SCHEME_ERROR_CODES.unsupportedScheme, `the 402 offers no shielded entry on the ${theRail.id} rail`);
     }
-    if (theRail.teeValidator !== undefined && accept.extra.teeValidator !== theRail.teeValidator) {
+    if (theRail.teeValidator !== undefined && fresh.extra.teeValidator !== theRail.teeValidator) {
       throw new WakelessClientError(SCHEME_ERROR_CODES.shieldedAttestationFailed, "the vendor's extra.teeValidator is not the identity this session attested; not paying");
     }
-    const price = BigInt(accept.amount);
-    const charge = chargeOf(price, accept.extra.privacyFeeBps);
     const route = new URL(base.url).pathname;
-    // The policy runs before anything is signed; a throw here leaves no trace anywhere.
-    if (options.beforePayment !== undefined) {
-      await options.beforePayment({ vendor: accept.payTo, route, asset: accept.asset, amount: price, charge, privacyFeeBps: accept.extra.privacyFeeBps });
-    }
-    const target = (entry: PaymentRequirements): bigint => (entry.extra.minDeposit === undefined ? (options.defaultDeposit ?? price * DEFAULT_DEPOSIT_MULTIPLE) : BigInt(entry.extra.minDeposit));
 
-    let channel = store.get(buyerAddress, accept.payTo, accept.asset);
-    if (channel !== undefined && channel.escrowAddress !== accept.extra.escrowAddress) {
+    let channel = store.get(buyerAddress, fresh.payTo, fresh.asset);
+    if (channel !== undefined && channel.escrowAddress !== fresh.extra.escrowAddress) {
       // The channel id includes the escrow: a new escrow is a new channel. The old record is kept for its close (task 8.1).
       log(`escrow changed for channel ${channel.channelId}; opening a new channel`);
       channel = undefined;
@@ -206,10 +226,23 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
       log(`channel ${channel.channelId} is ${channel.close.state}; opening a new channel`);
       channel = undefined;
     }
+    let accept = rememberedTerms(fresh, channel?.accept);
+    let price = BigInt(accept.amount);
+    let charge = chargeOf(price, accept.extra.privacyFeeBps);
+    // The policy runs before anything is signed; a throw here leaves no trace anywhere.
+    const policy = async (): Promise<void> => {
+      if (options.beforePayment !== undefined) {
+        await options.beforePayment({ vendor: accept.payTo, route, asset: accept.asset, amount: price, charge, privacyFeeBps: accept.extra.privacyFeeBps });
+      }
+    };
+    await policy();
+    const target = (entry: PaymentRequirements): bigint => (entry.extra.minDeposit === undefined ? (options.defaultDeposit ?? price * DEFAULT_DEPOSIT_MULTIPLE) : BigInt(entry.extra.minDeposit));
+
     let accepted = channel === undefined ? 0n : BigInt(channel.accepted);
     let balance = channel === undefined ? 0n : BigInt(channel.deposit);
     let echo: PaymentRequirements = accept;
     let topUps = 0;
+    let termsAdopted = false;
     let last: Response | undefined;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -308,6 +341,23 @@ export function wrapFetchWithWakeless(fetchImpl: typeof fetch, options: Wakeless
         void _credited;
         channel = { ...rest, deposit: balance.toString(), updatedAt: now().toISOString() };
         store.put(channel);
+        await discard(response);
+        continue;
+      }
+
+      if (code === SCHEME_ERROR_CODES.shieldedTermsQuoted && !termsAdopted) {
+        // This buyer's terms differ from the entry it paid against (task 12.1T): pay once more
+        // against the quoted entry, after the policy has seen the quoted price. A deposit just
+        // made stays pending and is resent with the new voucher.
+        const quoted = again?.accepts.find((entry) => entry.payTo === accept.payTo && entry.asset === accept.asset && entry.extra.binding === theRail.id && entry.extra.termsReceipt !== undefined);
+        if (quoted === undefined || (theRail.teeValidator !== undefined && quoted.extra.teeValidator !== theRail.teeValidator)) return response;
+        termsAdopted = true;
+        accept = quoted;
+        echo = quoted;
+        price = BigInt(quoted.amount);
+        charge = chargeOf(price, quoted.extra.privacyFeeBps);
+        await policy();
+        log(`terms quoted for channel ${channel.channelId}`);
         await discard(response);
         continue;
       }
