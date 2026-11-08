@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { serve } from "@hono/node-server";
-import { x402Shielded } from "@wakeless/vendor";
+import { x402Shielded, type TermsOptions } from "@wakeless/vendor";
 import { Hono } from "hono";
 import { SYMBOL, newsFeed, priceFeed, sentimentFeed } from "./data.js";
 
@@ -25,6 +25,8 @@ export interface VendorAppOptions {
   readonly facilitatorUrl: string;
   readonly payTo: string;
   readonly seed: string;
+  /** The relationship-terms layer (task 12.1T), only when `RELATIONSHIP_TERMS=true`; absent, the vendor is exactly what it was. */
+  readonly terms?: TermsOptions;
 }
 
 export function createVendorApp(definition: VendorDefinition, options: VendorAppOptions): Hono {
@@ -38,6 +40,7 @@ export function createVendorApp(definition: VendorDefinition, options: VendorApp
       amountPerRoute: { [definition.route]: definition.amount },
       maxTimeoutSeconds: 60,
       alsoAcceptPublic: false,
+      ...(options.terms === undefined ? {} : { terms: options.terms }),
     }),
   );
   app.get(definition.route, (c) => {
@@ -54,6 +57,8 @@ export interface VendorConfig {
   readonly payTo: string;
   /** `0` picks a free port. */
   readonly port: number;
+  /** This vendor's terms layer, when the flag is on. */
+  readonly terms?: TermsOptions;
 }
 
 export interface RunningVendor {
@@ -77,8 +82,8 @@ export async function startVendors(configs: readonly VendorConfig[], options: Om
   };
   const vendors: RunningVendor[] = [];
   try {
-    for (const { definition, payTo, port } of configs) {
-      const app = createVendorApp(definition, { ...options, payTo });
+    for (const { definition, payTo, port, terms } of configs) {
+      const app = createVendorApp(definition, { ...options, payTo, ...(terms === undefined ? {} : { terms }) });
       vendors.push(
         await new Promise<RunningVendor>((resolve, reject) => {
           const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info: AddressInfo) => {
