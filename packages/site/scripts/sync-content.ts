@@ -3,10 +3,12 @@
 // content/docs is generated and gitignored; edit the sources, not the pages.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { buildLandingData } from "./landing-data.js";
 import { prepare, toMdx } from "./markdown.js";
 import { SDK_PACKAGES, availablePages, routes, type Page } from "./pages.js";
 
 export const CONTENT = join(import.meta.dirname, "..", "content", "docs");
+export const LANDING_JSON = join(import.meta.dirname, "..", "content", "landing.json");
 
 export function render(page: Page, routeMap: Record<string, string>): string {
   const parts = page.build().map((block) => ("mdx" in block ? block.mdx : toMdx(prepare(block.nodes, { from: block.from, routes: routeMap })).trim()));
@@ -30,7 +32,8 @@ export function sync(): { written: string[]; skipped: string[] } {
   top.splice(top.indexOf("fund-from-any-chain") + 1, 0, "sdk");
   writeFileSync(join(CONTENT, "meta.json"), JSON.stringify({ pages: top }, null, 2) + "\n");
   writeFileSync(join(CONTENT, "sdk", "meta.json"), JSON.stringify({ title: "SDK", pages: SDK_PACKAGES }, null, 2) + "\n");
-  console.log(`[site] wrote ${pages.length} pages to content/docs`);
+  writeFileSync(LANDING_JSON, JSON.stringify(buildLandingData(), null, 2) + "\n");
+  console.log(`[site] wrote ${pages.length} pages to content/docs and content/landing.json`);
   return { written: pages.map((p) => p.slug), skipped: skipped.map((s) => s.page.slug) };
 }
 

@@ -1,8 +1,19 @@
-// The two pieces of Home that are not copied from a source: the video placeholder and the buttons.
+// Shared by the landing and the docs: the wordmark, the GitHub link, and the two pieces of
+// the docs overview page that are not copied from a source (video placeholder, buttons).
 import { buttonVariants } from "fumadocs-ui/components/ui/button";
 import Link from "next/link";
 
 export const GITHUB_URL = "https://github.com/ivanmolto/wakeless";
+
+/** The two wordmarks from brand/: near-black ink on the light theme, off-white ink on the dark one. */
+export function Wordmark() {
+  return (
+    <>
+      <img src="/brand/wordmark/wordmark-light.svg" alt="Wakeless" width={116} height={32} className="dark:hidden" />
+      <img src="/brand/wordmark/wordmark-dark.svg" alt="Wakeless" width={116} height={32} className="hidden dark:block" />
+    </>
+  );
+}
 
 /** Replaced by the unlisted embed in task 14.2. */
 export function VideoPlaceholder() {
@@ -20,10 +31,10 @@ export function VideoPlaceholder() {
 export function HomeButtons() {
   return (
     <div className="not-prose flex flex-wrap gap-3">
-      <Link href="/quickstart" className={buttonVariants({ variant: "primary" })}>
+      <Link href="/docs/quickstart" className={buttonVariants({ variant: "primary" })}>
         Quickstart
       </Link>
-      <Link href="/how-it-works" className={buttonVariants({ variant: "secondary" })}>
+      <Link href="/docs/how-it-works" className={buttonVariants({ variant: "secondary" })}>
         How it works
       </Link>
       <a href={GITHUB_URL} className={buttonVariants({ variant: "secondary" })}>

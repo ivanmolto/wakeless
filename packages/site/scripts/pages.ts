@@ -210,7 +210,7 @@ export function routes(pages: Page[]): Record<string, string> {
   const map: Record<string, string> = {};
   const has = (slug: string) => pages.some((p) => p.slug === slug);
   const add = (path: string, slug: string) => {
-    if (has(slug)) map[path] = slug === "index" ? "/" : `/${slug}`;
+    if (has(slug)) map[path] = slug === "index" ? "/docs" : `/docs/${slug}`;
   };
   add("README.md", "index");
   add("docs/FUNDING.md", "fund-from-any-chain");
