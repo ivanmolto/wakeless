@@ -27,3 +27,4 @@ packages/site/.next/
 packages/site/next-env.d.ts
 packages/site/tsconfig.tsbuildinfo
 packages/site/AGENTS.md
+docs/product-direction.md
