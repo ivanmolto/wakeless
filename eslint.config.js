@@ -3,7 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   // Anchored: `vendor/**` is the third-party checkout at the root, not packages/vendor.
-  { ignores: ["**/node_modules/**", "**/dist/**", "vendor/**", "keys/**", ".agents/**", ".claude/**", "packages/site/public/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "vendor/**", "keys/**", ".agents/**", ".claude/**", "packages/site/public/**", "packages/site/.next/**", "packages/site/.source/**", "packages/site/next-env.d.ts"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

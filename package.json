@@ -34,7 +34,9 @@
     "leak:index": "tsx --conditions=development scripts/leak-index.ts",
     "terms:demo": "tsx --conditions=development scripts/terms-demo.ts",
     "terms:doc": "tsx --conditions=development scripts/terms-doc.ts",
-    "watcher:web": "pnpm --filter @wakeless/watcher-web dev"
+    "watcher:web": "pnpm --filter @wakeless/watcher-web dev",
+    "site:dev": "pnpm --filter @wakeless/site run site:dev",
+    "site:build": "pnpm --filter @wakeless/site run site:build"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

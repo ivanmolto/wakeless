@@ -20,3 +20,10 @@ docs/leak/cache/
 .DS_Store
 # Tarballs written by pnpm release:dry.
 /.release/
+# The docs site (task 12.3): generated pages, Fumadocs codegen and the Next build.
+packages/site/content/
+packages/site/.source/
+packages/site/.next/
+packages/site/next-env.d.ts
+packages/site/tsconfig.tsbuildinfo
+packages/site/AGENTS.md
