@@ -10,7 +10,18 @@ Status: devnet alpha, unaudited. Packages `@wakeless/scheme`, `@wakeless/binding
 
 ## Why hide the relationship
 
-Hidden amounts are the baseline: seven Crypto World's Fair teams built private x402 for agents in one month, and all seven hide how much an agent paid. Wakeless hides whom it paid, and in what order, because commercial history is bilateral and private. What a seller has learned from doing business with one buyer (settled cleanly seven periods running; overran its deposit twice; closed a channel owing money) is that seller's asset, and it is what sets the terms the seller offers next time. There is no canonical "is this buyer good"; there are only relationships, each private to the party that earned it. Public settlement destroys that: on the public `batch-settlement` rail anyone can read a seller's customer list, each customer's spend and which customers are regulars, a competitor can undercut the regulars, and a buyer's vendor set and ordering is its plan. So privacy here is not a feature on the rail; it is what lets a relationship stay an asset on an open chain. Three things follow, and this repository builds all three: the observer test measures what a reader can rebuild (vendor set, spend per vendor, first-contact order), not only how many transactions it sees; the leakage index shows that this graph is public today, with real counts; and behind a flag the seller prices from the private history the rail protects.
+x402 lets agents pay per request, but every payment is a public Solana transaction. Hidden amounts are now the baseline. What stays public is the relationship: who an agent pays, how often, in what order. A buyer's vendor set is its plan; a seller's customer list is its asset, and what it has learned from one buyer is what sets the terms it offers next. Public settlement turns that private history into free reputation for anyone who did not earn it.
+
+The calls are the plan. An agent's choice of paid tools, their order and their timing can reveal its next move, and hiding amounts does not hide that trajectory. The same leak applies wherever an agent pays for its inputs:
+
+- Trading and market signals: can expose a strategy before execution.
+- Due diligence and acquisitions: can reveal a target before a bid.
+- Legal research: can signal who will be sued, and on what theory.
+- Threat intelligence: can tip off an adversary to an investigation.
+- Procurement and sourcing: can expose suppliers, alternatives and fallbacks.
+- Agent orchestration: can reveal the specialists behind a capability stack.
+
+Hidden amounts are the baseline: seven Crypto World's Fair teams built private x402 for agents in one month, and all seven hide how much an agent paid. Wakeless hides that too, and whom it paid, and in what order, because commercial history is bilateral and private. What a seller has learned from doing business with one buyer (settled cleanly seven periods running; overran its deposit twice; closed a channel owing money) is that seller's asset, and it is what sets the terms the seller offers next time. There is no canonical "is this buyer good"; there are only relationships, each private to the party that earned it. Public settlement destroys that: on the public `batch-settlement` rail anyone can read a seller's customer list, each customer's spend and which customers are regulars, a competitor can undercut the regulars, and a buyer's vendor set and ordering is its plan. So privacy here is not a feature on the rail; it is what lets a relationship stay an asset on an open chain. Three things follow, and this repository builds all three: the observer test measures what a reader can rebuild (vendor set, spend per vendor, first-contact order), not only how many transactions it sees; the leakage index shows that this graph is public today, with real counts; and behind a flag the seller prices from the private history the rail protects.
 
 ## What the ledger already knows
 
@@ -207,7 +218,7 @@ The three endpoints: `GET /supported` advertises one kind with `escrowAddress` a
 
 ## Trust boundary
 
-Wakeless's privacy is against the public ledger, not against operators. Three operators are inside the boundary in v1:
+Wakeless's privacy is against the public ledger, not against operators. The facilitator sees the vouchers; MagicBlock's enclave and NEAR's private shard are trusted hardware, not proofs. Three operators are inside the boundary in v1:
 
 1. The facilitator holds the escrow key and sees every voucher, every vendor and every amount.
 2. MagicBlock's enclave executes the private transfers. Its confidentiality rests on Intel TDX attestation and MagicBlock's validator; the rollup also screens transactions (geofencing, sanctions) at ingress, so an operator policy sits in the path, and a refusal is `shielded_binding_rejected`, never routed around.
