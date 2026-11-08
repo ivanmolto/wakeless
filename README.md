@@ -283,7 +283,7 @@ The observer then read every signature the run produced (two channel deposits, t
 
 ## v2
 
-- Binding to Helius Rings beside MagicBlock, behind `BINDING=rings`, so the same scheme runs over a prover instead of an enclave.
+- Binding to Helius Rings beside MagicBlock, behind `BINDING=rings`, so the same scheme runs over a prover instead of an enclave; and a Privacy Cash binding, behind `BINDING=privacycash`, for the payout leg only: the vendor's income stays public and its link to the buyer is broken.
 - A commitment voucher (`VOUCHER_V2`): the voucher carries a hash or Pedersen commitment to the cumulative amount, checked by the escrow program inside the PER or by a circuit, so no operator but the prover sees amounts.
 - A program-owned escrow (`ESCROW_PROGRAM`): an Anchor program delegated into the PER holds the escrow and releases to a vendor against a voucher, removing the facilitator from the parties that can move funds ([`docs/ESCROW.md`](docs/ESCROW.md)).
 - Mainnet by default, after the capped demo run and a human decision; the caps stay in code.
