@@ -2,12 +2,38 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { buildLandingData } from "../scripts/landing-data.js";
 import { PRIVATE_NOTES, ROOT, toMdx } from "../scripts/markdown.js";
-import { PAGES } from "../scripts/pages.js";
+import { PAGES, SDK_PACKAGES, availablePages, installLine, publishedVersion, routes } from "../scripts/pages.js";
 import { render } from "../scripts/sync-content.js";
-import { routes } from "../scripts/pages.js";
 
 describe("site sources", () => {
+  // The extractors pin headings and first words in the README and docs/. This runs every one
+  // of them, so a renamed heading fails `pnpm test` here rather than the Vercel build.
+  it("every available page renders and the landing data builds", () => {
+    const { pages } = availablePages();
+    const routeMap = routes(pages);
+    for (const page of pages) {
+      const mdx = render(page, routeMap);
+      expect(mdx, `page ${page.slug}`).toContain(`title: ${JSON.stringify(page.title)}`);
+      expect(mdx.trim().split("\n").length, `page ${page.slug} is near-empty`).toBeGreaterThan(5);
+    }
+    expect(() => buildLandingData()).not.toThrow();
+  });
+
+  it("the install page's version is the packages' version, and the five packages agree", () => {
+    const version = publishedVersion();
+    expect(version).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
+    for (const p of SDK_PACKAGES) {
+      const pkg = JSON.parse(readFileSync(join(ROOT, `packages/${p}/package.json`), "utf8")) as { version: string };
+      expect(pkg.version, `packages/${p}/package.json version`).toBe(version);
+      expect(installLine(`packages/${p}/README.md`), `packages/${p}/README.md install line`).toContain(`@${version}`);
+    }
+    const quickstart = render(PAGES.find((p) => p.slug === "quickstart")!, routes(PAGES));
+    expect(quickstart).toContain(`(\`${version}\`, ESM only`);
+    expect(readFileSync(join(ROOT, "README.md"), "utf8")).toContain(`at \`${version}\``);
+  });
+
   it("every MDX page's source document exists and is non-empty", () => {
     for (const page of PAGES) {
       const missing = page.sources.filter((s) => !existsSync(join(ROOT, s)));
