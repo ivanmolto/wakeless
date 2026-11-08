@@ -37,6 +37,8 @@ app.get("/price/:symbol", (c) => c.json({ symbol: c.req.param("symbol"), price: 
 | Facilitator answers 429 `shielded_rate_limited` at `/verify` or `/settle` | `402` with that code and `retryable: true`; the resource is withheld (after `/settle`, replaced). The buyer sends the same request again after a wait; `docs/RECOVERY.md` has the rows |
 | Facilitator advertises no devnet kind | `402` with code `shielded_facilitator_unavailable`. A mainnet kind is refused |
 
+| `RELATIONSHIP_TERMS=true` only: `accepted` is the route's standard entry and this buyer's terms differ | `402`, `shielded_terms_quoted`, `retryable: true`, with the buyer's entry and its signed `extra.termsReceipt`; the facilitator is not asked. The buyer pays once more against that entry (`@wakeless/client` does) |
+
 A refusal's body is `{error, code, retryable}`, the same triple the facilitator uses; `PaymentRequired.error` in the header holds the same code. Match on the code, never on the message. `shielded_facilitator_unavailable` is a Wakeless code that the x402 specification does not define.
 
 `/supported` is reused for 5 seconds. Only an answer is kept; a failure is asked again on the next request. So an unpaid request can still list the entry for a few seconds after the facilitator goes away, but a paid one always reaches `/verify` and fails closed there.
@@ -48,6 +50,21 @@ The standard requires a plain `batch-settlement` entry to copy `feePayer` and `r
 ## Before the vendor can be paid
 
 The `payTo` key must have made one private deposit of its own into the rail (`pnpm fund:private --role <vendor> --usdc 0.01` in this repo, or any `POST /v1/spl/deposit` with `private: true` signed by that key) before the enclave accepts a transfer to it. Without one the facilitator's redemption is refused with `shielded_binding_rejected` (`TEE_INGRESS`), recorded as terminal and left owed in escrow; `GET /receipts/:channelId` lists it under `rejected`. The deposit is a public base-layer transaction naming the vendor and the vault. Observed behaviour of the devnet rail, not documented by MagicBlock; see `@wakeless/vendors` for the account.
+
+## Relationship terms (experimental, off by default)
+
+With `RELATIONSHIP_TERMS=true` and a `terms` option, the middleware quotes each buyer from this vendor's own private history with it (briefing §3c; [`docs/TERMS.md`](../../docs/TERMS.md), generated): `amountPerRoute` becomes the standard price, and the entry a buyer gets carries its price as `amount`, its funding requirement as `extra.minDeposit`, and a vendor-signed `extra.termsReceipt` the buyer keeps. Policy `terms@1`: relationship capital of 250 bps per clean period (a redeemed period with nothing owed) up to 2500; a risk premium of 2000 bps for `close_with_unpaid` and 1000 bps for `repeated_exceeds_deposit`; 20 calls' funding for an unknown buyer, down to 5 with capital, 50 with an incident. An unknown buyer, including a rotated address, gets standard terms and never better.
+
+```ts
+import { FileTermsHistory, termsIfEnabled, x402Shielded } from "@wakeless/vendor";
+
+x402Shielded({
+  facilitatorUrl, payTo, amountPerRoute: { "/price/:symbol": "1000" },
+  terms: termsIfEnabled(process.env, () => ({ signer: { secretKey: vendorKeyBytes }, history: new FileTermsHistory("~/.wakeless/terms-vendor1.json") })),
+});
+```
+
+The history is this vendor's state: one JSON file, never sent to the facilitator (the receipt is stripped from the forwarded entry), never shared between vendors, never on chain. It is fed by the middleware's own `/verify` outcomes (`history.corrective`), by the facilitator receipts the vendor reads (`history.redeemed`) and by closes (`history.closed`). With the flag off (anything but the string `true`) `termsIfEnabled` returns `undefined` and the middleware is byte-for-byte what it was. `pnpm terms:demo` in this repo shows two buyers, one route, two receipt cards and an empty observer table. Vocabulary is locked ([`docs/VOCABULARY.md`](../../docs/VOCABULARY.md)).
 
 ## What this protects
 

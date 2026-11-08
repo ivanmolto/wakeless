@@ -9,12 +9,15 @@ import {
   X402_VERSION,
   decodeBase58Exact,
   parseU64,
+  publicKeyOf,
   type PaymentRequired,
   type PaymentRequirements,
 } from "@wakeless/scheme";
 import type { Context, MiddlewareHandler } from "hono";
 import { decodePaymentSignature } from "./decode.js";
 import { FacilitatorClient, Refusal, UNAVAILABLE, parseCorrective, type Supported } from "./facilitator.js";
+import type { TermsOptions } from "./terms/index.js";
+import { quoteFor, signTermsReceipt, type TermsReceipt } from "./terms/receipt.js";
 
 export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
 export const PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE";
@@ -54,6 +57,13 @@ export interface X402ShieldedOptions {
   /** Deposit target for every route, at least each route's price. Default: 100 times the route's price. */
   readonly minDeposit?: string;
   readonly facilitatorTimeoutMs?: number;
+  /**
+   * The relationship-terms layer (task 12.1T), present only when `RELATIONSHIP_TERMS=true`
+   * (`termsIfEnabled`). Absent, the middleware is exactly what it was without the layer.
+   * With it, `amountPerRoute` is each route's standard price; the entry a buyer gets
+   * carries its own price, `extra.minDeposit` and a vendor-signed `extra.termsReceipt`.
+   */
+  readonly terms?: TermsOptions;
 }
 
 /** A plain `batch-settlement` entry: the same top-level fields under the standard scheme id. */
@@ -80,19 +90,45 @@ function encode(value: unknown): string {
 }
 
 /**
- * `extra` keys that are not terms: `minDeposit` is a target the corrective 402
- * raises, `channelState` and `voucherState` travel on a corrective 402 only. A
- * buyer echoing a corrective entry as `accepted` has still accepted this route's
- * terms, so they are left out of the match.
+ * `extra` keys that are not matched: `minDeposit` is a target the corrective 402
+ * raises, `channelState` and `voucherState` travel on a corrective 402 only, and
+ * `termsReceipt` is the signed account of `amount` and `minDeposit`, which are matched
+ * themselves. A buyer echoing a corrective entry as `accepted` has still accepted this
+ * route's terms, so they are left out of the match.
  */
-const NOT_TERMS: readonly string[] = ["minDeposit", "channelState", "voucherState"];
+const NOT_MATCHED: readonly string[] = ["minDeposit", "channelState", "voucherState", "termsReceipt"];
 
-function terms(entry: unknown): unknown {
+function matchable(entry: unknown, alsoDrop: readonly string[] = []): unknown {
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
   const { extra, ...rest } = entry as Record<string, unknown>;
   if (typeof extra !== "object" || extra === null || Array.isArray(extra)) return entry;
-  const kept = Object.fromEntries(Object.entries(extra).filter(([key]) => !NOT_TERMS.includes(key)));
-  return { ...rest, extra: kept };
+  const kept = Object.fromEntries(Object.entries(extra).filter(([key]) => !NOT_MATCHED.includes(key)));
+  const top = Object.fromEntries(Object.entries(rest).filter(([key]) => !alsoDrop.includes(key)));
+  return { ...top, extra: kept };
+}
+
+/** The entry as the facilitator gets it: the terms receipt is the buyer's and the vendor's, never the facilitator's. */
+function forFacilitator(entry: Accept): Accept {
+  if (!("termsReceipt" in entry.extra)) return entry;
+  const { termsReceipt: _terms, ...extra } = entry.extra as Record<string, unknown>;
+  void _terms;
+  return { ...entry, extra } as Accept;
+}
+
+/** `payload.channelConfig.buyer` when it is an address; the facilitator checks the rest. */
+function buyerOf(payload: Readonly<Record<string, unknown>>): string | undefined {
+  const config = payload.channelConfig;
+  if (typeof config !== "object" || config === null) return undefined;
+  const buyer = (config as Record<string, unknown>).buyer;
+  return decodeBase58Exact(buyer, 32) === null ? undefined : (buyer as string);
+}
+
+/** `payload.voucher.channelId` when it is a channel id. */
+function channelIdOf(payload: Readonly<Record<string, unknown>>): string | undefined {
+  const voucher = payload.voucher;
+  if (typeof voucher !== "object" || voucher === null) return undefined;
+  const channelId = (voucher as Record<string, unknown>).channelId;
+  return decodeBase58Exact(channelId, 32) === null ? undefined : (channelId as string);
 }
 
 /** The two `/verify` verdicts that make the next 402 corrective (briefing §3, rows 1 and 2). */
@@ -149,9 +185,24 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
   const tokenProgram = options.tokenProgram ?? TOKEN_PROGRAM;
   const routes = compileRoutes(options, maxTimeoutSeconds, withdrawDelay);
   const facilitator = new FacilitatorClient(options.facilitatorUrl.replace(/\/+$/, ""), options.facilitatorTimeoutMs ?? DEFAULT_FACILITATOR_TIMEOUT_MS);
+  const terms = options.terms;
+  if (terms !== undefined && publicKeyOf(terms.signer) !== options.payTo) throw new Error("x402Shielded: terms.signer must be the payTo key");
 
-  function acceptsFor(route: Route, supported: Supported): readonly Accept[] {
-    const common = { network: DEVNET_CAIP2, amount: route.amount, asset, payTo: options.payTo, maxTimeoutSeconds };
+  /**
+   * This buyer's terms for the route (briefing §3c): price, funding requirement and the
+   * signed receipt. `null` is an unknown buyer, who gets the standard terms. Only with the
+   * layer on; without it the route's own amount and target stand.
+   */
+  function quote(route: Route, buyer: string | null): { amount: string; minDeposit: string; termsReceipt?: TermsReceipt } {
+    if (terms === undefined) return { amount: route.amount, minDeposit: route.minDeposit };
+    const history = buyer === null ? undefined : terms.history.get(buyer);
+    const quoted = quoteFor(BigInt(route.amount), buyer, history);
+    return { amount: quoted.terms.price.toString(), minDeposit: quoted.terms.minDeposit.toString(), termsReceipt: signTermsReceipt(terms.signer, quoted.unsigned) };
+  }
+
+  function acceptsFor(route: Route, supported: Supported, buyer: string | null = null): readonly Accept[] {
+    const quoted = quote(route, buyer);
+    const common = { network: DEVNET_CAIP2, amount: quoted.amount, asset, payTo: options.payTo, maxTimeoutSeconds };
     const shielded: PaymentRequirements = {
       scheme: SCHEME_ID,
       ...common,
@@ -160,12 +211,14 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
         voucherSigner: "client",
         withdrawDelay,
         tokenProgram,
-        minDeposit: route.minDeposit,
+        minDeposit: quoted.minDeposit,
         ...supported.shielded,
-      },
+        ...(quoted.termsReceipt === undefined ? {} : { termsReceipt: quoted.termsReceipt }),
+      } as PaymentRequirements["extra"],
     };
     if (options.alsoAcceptPublic !== true || supported.public === undefined) return [shielded];
-    return [shielded, { scheme: "batch-settlement", ...common, extra: { ...supported.public, withdrawDelay, tokenProgram } }];
+    // The plain entry stays at the route's standard price: terms are a shielded channel's.
+    return [shielded, { scheme: "batch-settlement", ...common, amount: route.amount, extra: { ...supported.public, withdrawDelay, tokenProgram } }];
   }
 
   /**
@@ -175,14 +228,16 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
    * also carries the deposit target that makes the refused voucher fit: the route's
    * `minDeposit` or the shortfall, whichever is larger. Nothing here reaches the ledger.
    */
-  function correctiveAccepts(accepts: readonly Accept[], paid: Accept, route: Route, code: string, verdictExtra: unknown, payload: Readonly<Record<string, unknown>>): readonly Accept[] {
+  function correctiveAccepts(accepts: readonly Accept[], paid: Accept, code: string, verdictExtra: unknown, payload: Readonly<Record<string, unknown>>): readonly Accept[] {
     if (paid.scheme !== SCHEME_ID) return accepts;
     const corrective = parseCorrective(verdictExtra);
-    let minDeposit = route.minDeposit;
+    // The entry's own target: the route's, or this buyer's funding requirement with the layer on.
+    const target = paid.extra.minDeposit ?? paid.amount;
+    let minDeposit = target;
     if (code === SCHEME_ERROR_CODES.cumulativeExceedsDeposit && corrective !== undefined) {
       const cumulative = cumulativeOf(payload);
       const shortfall = cumulative === undefined ? 0n : cumulative - BigInt(corrective.channelState.balance);
-      if (shortfall > BigInt(route.minDeposit)) minDeposit = shortfall.toString();
+      if (shortfall > BigInt(target)) minDeposit = shortfall.toString();
     }
     const extra: PaymentRequirements["extra"] = {
       ...paid.extra,
@@ -224,15 +279,23 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
 
     const supported = await facilitator.supported();
     if (supported instanceof Refusal) return paymentRequired(c, [], supported);
-    const accepts = acceptsFor(route, supported);
-    if (decoded === undefined) return paymentRequired(c, accepts);
+    if (decoded === undefined) return paymentRequired(c, acceptsFor(route, supported));
 
-    // The buyer's copy of the terms is never what gets verified: price and payTo are this route's
-    // own, and the entry forwarded as `accepted` is the route's, whichever target the buyer saw.
-    const offered = terms(decoded.value.accepted);
-    const accepted = accepts.find((entry) => isDeepStrictEqual(terms(entry), offered));
+    // The buyer is known from its payment (`channelConfig.buyer`); with the layer on, the
+    // entries offered are this buyer's. The buyer's copy is never what gets verified: price
+    // and payTo are this route's own, and the entry forwarded as `accepted` is the route's.
+    const buyer = terms === undefined ? null : (buyerOf(decoded.value.payload) ?? null);
+    const channelId = channelIdOf(decoded.value.payload);
+    if (terms !== undefined && buyer !== null && channelId !== undefined) terms.history.seen(buyer, channelId);
+    const accepts = acceptsFor(route, supported, buyer);
+    const offered = matchable(decoded.value.accepted);
+    const accepted = accepts.find((entry) => isDeepStrictEqual(matchable(entry), offered));
     if (accepted === undefined) {
-      return paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.invalidPaymentRequirements, "accepted is not an entry this route offers", false));
+      // The same entry at another price is a buyer that paid against the standard terms and has its own.
+      const termsOnly = terms !== undefined && accepts.some((entry) => isDeepStrictEqual(matchable(entry, ["amount"]), matchable(decoded.value.accepted, ["amount"])));
+      return termsOnly
+        ? paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.shieldedTermsQuoted, "this buyer's terms differ from the entry it paid against; pay against the entry offered", true))
+        : paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.invalidPaymentRequirements, "accepted is not an entry this route offers", false));
     }
     // A seller takes a payment: a deposit or a voucher. A close request (`refund`) goes to the
     // facilitator from the buyer directly and pays for nothing; here it is refused before any call.
@@ -240,14 +303,16 @@ export function x402Shielded(options: X402ShieldedOptions): MiddlewareHandler {
     if (payloadType !== "deposit" && payloadType !== "voucher") {
       return paymentRequired(c, accepts, new Refusal(SCHEME_ERROR_CODES.payloadType, "payload.type must be deposit or voucher", false));
     }
-    const request = { x402Version: X402_VERSION, paymentPayload: { ...decoded.value, accepted }, paymentRequirements: accepted };
+    const forwarded = forFacilitator(accepted);
+    const request = { x402Version: X402_VERSION, paymentPayload: { ...decoded.value, accepted: forwarded }, paymentRequirements: forwarded };
 
     const verdict = await facilitator.post("/verify", request);
     if (verdict instanceof Refusal) return paymentRequired(c, verdict.code === UNAVAILABLE.code ? [] : accepts, verdict);
     if (verdict.isValid !== true) {
       const code = typeof verdict.invalidReason === "string" ? verdict.invalidReason : SCHEME_ERROR_CODES.unexpectedVerifyError;
       const refusal = new Refusal(code, typeof verdict.invalidMessage === "string" ? verdict.invalidMessage : "the voucher was not accepted", verdict.retryable === true);
-      const entries = CORRECTIVE_CODES.has(code) ? correctiveAccepts(accepts, accepted, route, code, verdict.extra, decoded.value.payload) : accepts;
+      if (terms !== undefined && buyer !== null && channelId !== undefined && code === SCHEME_ERROR_CODES.cumulativeExceedsDeposit) terms.history.corrective(buyer, channelId);
+      const entries = CORRECTIVE_CODES.has(code) ? correctiveAccepts(accepts, accepted, code, verdict.extra, decoded.value.payload) : accepts;
       return paymentRequired(c, entries, refusal);
     }
 
