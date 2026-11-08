@@ -11,10 +11,10 @@ describeBuilt("site search", () => {
     const db = create({ schema: { content: "string", url: "string" } });
     load(db, JSON.parse(readFileSync(SEARCH_BODY, "utf8")));
     const expected: Record<string, string> = {
-      voucher: "/x402-integration",
-      "trust boundary": "/trust-boundary",
-      fund: "/fund-from-any-chain",
-      leak: "/ledger",
+      voucher: "/docs/x402-integration",
+      "trust boundary": "/docs/trust-boundary",
+      fund: "/docs/fund-from-any-chain",
+      leak: "/docs/ledger",
     };
     for (const [term, page] of Object.entries(expected)) {
       const result = await search(db, { term, properties: ["content"], limit: 200 });

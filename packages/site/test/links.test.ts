@@ -13,8 +13,9 @@ describeBuilt("site links", () => {
     // Every manifest page whose sources exist was built (Relationship terms only with docs/TERMS.md).
     for (const page of PAGES) {
       if (page.optional && !page.sources.every((s) => existsSync(join(SITE, "..", "..", s)))) continue;
-      expect(routes, `page ${page.slug} not built`).toContain(page.slug === "index" ? "/" : `/${page.slug}`);
+      expect(routes, `page ${page.slug} not built`).toContain(page.slug === "index" ? "/docs" : `/docs/${page.slug}`);
     }
+    expect(routes, "the landing").toContain("/");
 
     const resolves = (path: string) =>
       routes.has(path.replace(/\/$/, "") || "/") ||
