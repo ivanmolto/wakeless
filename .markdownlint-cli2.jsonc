@@ -1,0 +1,12 @@
+{
+  // `pnpm lint:md` (task 12.2): the README for a judge with fifteen minutes.
+  "config": {
+    "default": true,
+    // Prose and tables carry full signatures and addresses; no line limit.
+    "MD013": false,
+    // The wordmark is a <picture> with light and dark sources, before the first heading.
+    "MD033": { "allowed_elements": ["picture", "source", "img"] },
+    "MD041": false
+  },
+  "globs": ["README.md"]
+}
