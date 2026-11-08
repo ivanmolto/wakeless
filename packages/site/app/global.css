@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/* brand/README.txt: exactly two colours, near-black #171819 and off-white #F6F5F1. */
+:root {
+  --color-fd-background: #f6f5f1;
+  --color-fd-foreground: #171819;
+  --color-fd-primary: #171819;
+  --color-fd-primary-foreground: #f6f5f1;
+}
+
+.dark {
+  --color-fd-background: #171819;
+  --color-fd-foreground: #f6f5f1;
+  --color-fd-primary: #f6f5f1;
+  --color-fd-primary-foreground: #171819;
+}
