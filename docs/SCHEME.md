@@ -178,6 +178,8 @@ A fourth, `shielded_rate_limited` (task 6.3), is the facilitator's HTTP 429: the
 
 A sixth, `shielded_unauthorized` (task 7.2), is the facilitator's HTTP 401 or 403 on its token-protected routes, `GET /receipts/:channelId` (vendor token) and `/admin/*` (admin token, loopback only). The spec's three endpoints carry no authentication and are unchanged; these routes are Wakeless additions (§4.5). `retryable: false`: the same request with the same token is refused again.
 
+A seventh, `shielded_terms_quoted` (task 12.1T, only with `RELATIONSHIP_TERMS` on), is the vendor middleware's answer to a buyer whose payment echoed the route's standard entry when the vendor's history gives that buyer other terms: a `402` with `retryable: true` whose shielded entry carries the buyer's `amount`, `extra.minDeposit` and signed `extra.termsReceipt`; the facilitator is not asked. The buyer pays once more against that entry (`docs/TERMS.md`).
+
 A fifth, `shielded_facilitator_unavailable` (task 4.2), is the vendor middleware's: a `402` with `retryable: true` and an empty `accepts[]` when the facilitator is unreachable, times out or answers 5xx. The spec defines no code for this; the briefing's failure table has it as a transport failure on which the server fails closed.
 
 Error bodies (task 3.3). Every refused facilitator request carries `{error, code, retryable}`, `code` being one of the codes above. A verdict on the payment keeps the spec's shape (`{isValid: false, invalidReason, …}`, `{success: false, errorReason, …}`) with those three fields beside it and status 200; a malformed envelope is 400, an unattested binding 503, a facilitator fault 500 (`specs/transports-v2/http.md`, Error Handling). The core spec defines no error body for the facilitator endpoints beyond the two response shapes; the triple is a Wakeless addition recorded in `docs/DEVIATIONS.md`.
@@ -329,7 +331,8 @@ Top-level fields are the core ones unchanged (`specs/x402-specification-v2.md:L1
 | `voucherSigner` | no | `:L245` | Always `"client"`. A `"server"` value is rejected with `invalid_batch_settlement_svm_payload_type`; there is no `operator`. |
 | `withdrawDelay` | yes | `:L247` | Same range and `>= maxTimeoutSeconds` rule. It bounds the time a buyer waits for a refund of `deposit - settled` after asking to close. |
 | `tokenProgram` | yes | `:L248` | The client verifies it against the mint owner, as the spec requires. |
-| `minDeposit` | no | `:L252` | Deposit target, `>= amount`. The relationship-terms layer (if Gate T passes) varies it per buyer; the client already honours it. |
+| `minDeposit` | no | `:L252` | Deposit target, `>= amount`. The relationship-terms layer (task 12.1T, `RELATIONSHIP_TERMS`) varies it per buyer as the funding requirement; the client honours it when it sizes a deposit. |
+| `termsReceipt` | no | Wakeless only (`docs/TERMS.md`) | With `RELATIONSHIP_TERMS` on: the vendor-signed account of this entry's `amount` and `minDeposit` (`{standardPrice, adjustments[], price, minDeposit, fundingCalls, policy, inputsDigest, vendorSignature}`). The buyer keeps it; the vendor strips it from the entry it forwards to the facilitator; the match on `accepted` ignores it. |
 | `maxIdleSecs` | no | `:L253` | Copied from `/supported`. The facilitator may close an idle channel at its watermark and refund the rest privately. |
 | `channelState`, `voucherState` | no | `:L257`-`L258`, `:L1216`-`L1269` | Corrective 402 only, same shapes. |
 
