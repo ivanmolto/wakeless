@@ -21,7 +21,7 @@ const binding = await MagicBlockBinding.create({
 console.log(binding.escrowAddress(), await binding.privateBalance());
 ```
 
-`npm install @wakeless/binding-magicblock@0.1.0-alpha.0 @wakeless/binding@0.1.0-alpha.0 @solana/kit@8.6.0`. `@wakeless/binding` is a peer dependency. ESM only, Node 22 or later. Construction talks to the devnet TEE and refuses anything else, so this example needs devnet and a funded escrow key.
+`npm install @wakeless/binding-magicblock@0.1.0-alpha.0 @wakeless/binding@0.1.0-alpha.0 @solana/kit@8.6.0`. `@wakeless/binding` is a peer dependency pinned to the exact same version: the two are released together, so install both at the version you want. ESM only, Node 22 or later. Construction talks to the devnet TEE and refuses anything else, so this example needs devnet and a funded escrow key.
 
 ## What construction does
 

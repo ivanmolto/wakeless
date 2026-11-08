@@ -18,7 +18,7 @@ console.log(first.status, second.status, await second.json());
 console.log(pay.getTrajectory().map((entry) => entry.cumulative)); // what this buyer paid, cumulative
 ```
 
-`npm install @wakeless/client@0.1.0-alpha.0 @wakeless/binding@0.1.0-alpha.0`. `@wakeless/binding` is a peer dependency. ESM only, Node 22 or later. The package also installs the `wakeless` command (below).
+`npm install @wakeless/client@0.1.0-alpha.0 @wakeless/binding@0.1.0-alpha.0`. `@wakeless/binding` is a peer dependency pinned to the exact same version: the two are released together, so install both at the version you want. ESM only, Node 22 or later. The package also installs the `wakeless` command (below).
 
 With every option spelled out and the default rail:
 
