@@ -1,12 +1,9 @@
-import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha2.js";
 import { decodeBase58Exact, encodeBase58 } from "./base58.js";
+import * as ed from "./ed25519.js";
 import { fail, ok, SCHEME_ERROR_CODES, SchemeError, type SchemeResult } from "./errors.js";
 import type { UnsignedVoucher } from "./types.js";
 import { encodeU64Le, parseU64 } from "./u64.js";
 import { parseUnsignedVoucher, type VoucherKeypair } from "./voucher.js";
-
-ed.hashes.sha512 = sha512;
 
 /**
  * The buyer's close request (task 8.1): a second signature by the buyer key over the
