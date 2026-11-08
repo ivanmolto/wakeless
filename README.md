@@ -4,57 +4,260 @@
   <img alt="Wakeless" src="brand/wordmark-light.svg" width="416">
 </picture>
 
-Wakeless is a shielded sibling of the x402 `batch-settlement` scheme on Solana: same 402 envelope, same headers, same facilitator endpoints, same voucher shape and lifecycle, with escrow and redemption inside a MagicBlock Private Ephemeral Rollup instead of the public payment-channels program, and channels fundable from any chain through Aurora Intents in confidential mode. The privacy claim is against the public ledger; three operators see inside: the facilitator (vouchers), MagicBlock's enclave (private transfers) and NEAR's private shard (funding origin and route).
+An agent's paid tool calls are its plan, and on today's x402 rails the plan leaks at three layers. Per call: the `exact` scheme puts one token transfer on chain per request, so ordering and timing are public. At settlement: the `batch-settlement` scheme moves the calls off chain, but every channel `open` names the payer and the `payTo`, and every `settle` and `distribute` publishes the cumulative amount, so the vendor set and the spend per vendor are public. At funding: the depositor is public, so whoever owns the channel is public. Wakeless is a shielded sibling of `batch-settlement` on Solana that answers each leak in turn: off-chain cumulative vouchers, so nothing touches the chain per call; escrow and redemption inside a MagicBlock Private Ephemeral Rollup (PER), so the vendor is never named on the base layer; and channels fundable from any chain through Aurora Intents in confidential mode, so the Solana arrival cannot be linked to the operator's origin wallet. It keeps the x402 V2 envelope, the three headers, the three facilitator endpoints and the standard 50-byte voucher, under the scheme id `batch-settlement-shielded`. The privacy claim is against the public ledger. Three operators see inside: the facilitator (vouchers), MagicBlock's enclave (private transfers) and NEAR's private shard (funding origin and route).
 
-Status: devnet alpha, unaudited
+Status: devnet alpha, unaudited. Packages `@wakeless/scheme`, `@wakeless/binding`, `@wakeless/binding-magicblock`, `@wakeless/client` and `@wakeless/vendor` at `0.1.0-alpha.0`. MIT.
 
-## What the devnet spike showed (31 Oct 2026)
+## Why hide the relationship
 
-`scripts/spike-magicblock.ts` ran the full private flow on devnet through MagicBlock's Private Payments API and the devnet TEE validator; the record is in [`docs/spike-log.md`](docs/spike-log.md) and the attestation in [`docs/attestation-devnet.json`](docs/attestation-devnet.json).
+Hidden amounts are the baseline: seven Crypto World's Fair teams built private x402 for agents in one month, and all seven hide how much an agent paid. Wakeless hides whom it paid, and in what order, because commercial history is bilateral and private. What a seller has learned from doing business with one buyer (settled cleanly seven periods running; overran its deposit twice; closed a channel owing money) is that seller's asset, and it is what sets the terms the seller offers next time. There is no canonical "is this buyer good"; there are only relationships, each private to the party that earned it. Public settlement destroys that: on the public `batch-settlement` rail anyone can read a seller's customer list, each customer's spend and which customers are regulars, a competitor can undercut the regulars, and a buyer's vendor set and ordering is its plan. So privacy here is not a feature on the rail; it is what lets a relationship stay an asset on an open chain. Three things follow, and this repository builds all three: the observer test measures what a reader can rebuild (vendor set, spend per vendor, first-contact order), not only how many transactions it sees; the leakage index shows that this graph is public today, with real counts; and behind a flag the seller prices from the private history the rail protects.
 
-- The escrow → vendor private transfer executed inside the TEE validator and left no transaction on the base layer. In the run window no base transaction named the escrow together with the vendor, and none carried the payment amount. The base layer shows deposits into the Global Vault and withdrawals out of it; a vendor's withdrawal is public, with the vault as counterparty.
-- `clientRefId` is not readable by the recipient: the private-balance endpoint returns only the balance and delegation status, and the TEE RPC returns an ephemeral transaction without accounts, logs or balances. A vendor's evidence of payment is its private-balance delta plus the facilitator-signed receipt.
-- A `memo` would be appended to the ephemeral transaction, not the base layer. Wakeless never sets it.
-- A recipient must hold a delegated ephemeral token account before it can be paid privately; it creates one with a deposit of its own. That onboarding is one public base transaction naming the recipient and the vault.
-- On devnet the API's `cluster` must be `devnet-private` to reach the TEE validator (`devnet` is the public devnet validator). The API's login token is separate from the TEE RPC's, and transactions are confirmed on the layer `sendTo` names, not through the API's send endpoint.
+## What the ledger already knows
 
-Three operators still see inside: the facilitator, MagicBlock's enclave, and NEAR's private shard for funding. MagicBlock's own documentation says private transfers reduce linkability, not observability.
+[`docs/LEAKAGE.md`](docs/LEAKAGE.md) is a read-only index of the mainnet payment-channels program that the public `batch-settlement` scheme settles on, [`CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX`](https://explorer.solana.com/address/CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX), generated by `pnpm leak:index` through the Helius RPC with two read methods, no keypair and nothing spent. Snapshot [`docs/leak/snapshot-2026-11-07.json`](docs/leak/snapshot-2026-11-07.json). Every address below is truncated to its first four and last four characters; the program id is the only full one.
 
-## The binding
+Sample: 18,291 signatures scanned, the program's whole history, block times 24 Jun 2026 to 7 Nov 2026 (cap 20,000); 94 transactions failed on chain and count for nothing. This is the public scheme as one facilitator runs it in preview; the numbers are the structure of the leak at this size, not a forecast.
 
-[`packages/binding`](packages/binding) defines `SettlementBinding`: what a settlement pool must provide (`readDeposit`, `settle`, `refund`, `privateBalance`, `observe`), typed with `@solana/kit` addresses and `bigint` amounts, with the `Receipt` and `ObserverView` shapes and the two `shielded_` error codes. [`packages/binding-magicblock`](packages/binding-magicblock) implements it over the Private Payments API and the devnet TEE with exactly the calls the spike proved: construction verifies TEE attestation and refuses otherwise (`shielded_attestation_failed`); `settle` and `refund` are private ephemeral-to-ephemeral transfers signed by the escrow, with the settlement delay drawn inside a window (30 s to 5 min by default) and a split of 1 under 2 USDC and up to 5 above; a transfer the API or the enclave refuses is `shielded_binding_rejected`, never retried and never retried publicly; no call ever sets a `memo`. Nothing outside a `packages/binding-*` package may import a privacy primitive; eslint enforces it.
+| Figure | Value | Sample |
+| --- | --- | --- |
+| Channels the ledger names | 2,464 | 18,291 signatures, 24 Jun to 7 Nov 2026 |
+| Distinct payers | 328 | same |
+| Distinct payTo | 60 | same |
+| Public (payer, payTo) relationships | 410 | same |
+| Payers with two or more distinct payTo | 24 | same |
+| Channels per payer, median / max | 2 / 400 | same; 328 payers |
+| Settled per channel, total / median | 1,225.456841 USDC / 0.005 USDC | same; 2,193 channels in USDC with a readable settlement, 221 without |
+| Largest payTo by distinct payers | `Cs2z…uEqP`, 242 payers, 1,483 channels | same; 60 payTo |
 
-Two facts the binding's design rests on. The enclave returns only existence and success for an ephemeral signature, to the recipient as much as to anyone, so `readDeposit` verifies the buyer and the amount from the client-signed transaction the x402 deposit payload carries, then checks that the transfer landed and that the escrow's private balance grew; the `clientRefId` is the facilitator's own bookkeeping and cannot be checked against the chain. And `minDelayMs`, `maxDelayMs` and `split` shape only the queued route; on the ephemeral-to-ephemeral route the transfer executes at once, so the delay is sent but must not be relied on.
+A payer with two or more distinct payTo is an agent whose vendor set is readable today: each pair is a channel account naming payer and payee, with a running total updated by every settle. In this sample that is 24 of 328 payers. One of them, rebuilt by the watcher's `reconstruct()` from its 23 channels' signatures and nothing else (the same function the side-by-side below runs on devnet):
 
-## How the scheme relates to the x402 standard
+- Payer: `83Az…zb4N`
+- Vendor set, in first-contact order: `5JRt…XE5S`, `2Xxz…6YiZ`, `8g9Y…mCtT`, `BXmp…47Lf`, `Drc9…xY1f`, `BgHH…ob8k`, `yeSo…CLyv`, `HBBJ…exBo`, `3ru1…cpoU`, `BXPK…MjP3`, `Ahmb…LcBz`, `BLcM…VGzw`
+- Cumulative spend per vendor, base units of each channel's mint: 218,370; 1,740; 29,380; 8,700; 7,830; 3,480; 2,610; 80,910; 1,740; 87,000; 870; 870
+- Settlements the ledger shows: 22, from 2026-09-08T05:01:11Z to 2026-11-03T23:40:01Z
 
-Wakeless keeps the x402 V2 envelope, the three transport headers, the facilitator endpoints and the standard 50-byte voucher, and advertises them under the scheme id `batch-settlement-shielded`. The SVM `batch-settlement` binding requires the canonical payment-channels program, so a shielded channel cannot use that id. [`docs/SCHEME.md`](docs/SCHEME.md) records, with spec line numbers, what is reused verbatim (fields, payload variants, the `invalid_batch_settlement_svm_*` error codes and `settlement_pending`), the exact voucher byte layout, every place the standard names the program, and the `accepts[]` entry with `extra.escrowAddress`, `extra.binding`, `extra.teeValidator` and `extra.privacyFeeBps`. New error codes take the `shielded_` prefix.
+The `exact` scheme, which names payer, payTo and amount in one instruction per call, is the larger leak; the snapshot carries no row for it because x402scan documents no public export for Solana x402 transfers, and the document says so. A Wakeless channel puts none of the above on the ledger: no channel account naming payer and payee, no voucher amount in an Ed25519 instruction, no payout per recipient.
 
-[`packages/scheme`](packages/scheme) is that document as code: the types for the shielded accept, the `deposit` and `voucher` payloads and `SettlementResponse` (the facilitator-signed receipt travels as `extra.receipt`); the error codes; the 50-byte voucher message, byte for byte the standard's, signed and verified with Ed25519 (`@noble/ed25519`); `deriveChannelId`, which replaces the payment-channels PDA with `base58(sha256(buyer || escrowAddress || mint || u64le(salt)))`, and `clientRefOf`, the decimal u64 of its first eight bytes that the private transfers carry as their reference; and `nextWatermark`, the pure rule a voucher must satisfy (above the watermark, at least the watermark plus the price, within the deposit). Pure functions, no network; a test scans the built output for network modules.
+## Side by side: the same workload on both rails
 
-[`packages/facilitator`](packages/facilitator) serves the x402 facilitator endpoints for that scheme as a Hono app over channel and operation stores (memory or Redis, one shared contract suite). `GET /supported` advertises one kind with `escrowAddress` and `teeValidator` taken from the attested binding; when attestation fails the process still answers, with `kinds: []` and `extra.error: "shielded_attestation_failed"`, and settles nothing. `POST /verify` recomputes the channel id, checks the buyer's signature and applies `nextWatermark` to the stored channel without writing. `POST /settle` of a voucher moves the watermark atomically, only after a `/verify` of the same payload within `maxTimeoutSeconds` (`shielded_verify_required` otherwise), and answers a repeated identical payload with the stored result and `extra.replayed: true`. Every refusal carries `{error, code, retryable}` beside the spec's own response shape; a caller over the per-address or per-channel rate limit gets `429` `shielded_rate_limited` with `Retry-After`; `GET /health` says whether the process is up and the binding attested. The redemption worker (`src/redeem.ts`) pays each vendor with one private transfer per channel per run, every `REDEEM_INTERVAL` or on `POST /admin/redeem` (loopback, admin token), for the amount owed minus the 0.1% fee, under a `settle` operation reserved before the binding is called; a rail refusal is terminal and alerted on `GET /admin/alerts`, never retried publicly, and at startup every pending operation is reconciled against the escrow's private balance before anything is sent. Each redemption produces a facilitator-signed receipt `{channelId, period, cumulative, amount, signature, facilitatorSignature}` that the vendor fetches from `GET /receipts/:channelId` with its token and verifies against `/supported`'s signer; `pnpm vendor:receipts --vendor 1` does that for every channel of a vendor, checks under the vendor's own rail login that each transfer landed, and flags any disagreement with `GET /admin/channels` ([`packages/vendors`](packages/vendors)). Logs are pino JSON lines that hold payload hashes, channel ids and codes, never a signature, a token or an amount. [`docs/RECOVERY.md`](docs/RECOVERY.md) says what a buyer and a seller must retain (the pending deposit's exact signature and transaction; the exact settle envelope) and send again after `settlement_pending`, a rate limit or a lost answer, mirroring the spec's recovery rules.
+[`docs/side-by-side.md`](docs/side-by-side.md), generated by `pnpm side-by-side` on 2026-11-07 on Solana devnet: 30 paid calls across three vendors (10 each, in blocks), then each rail's redemption, once through the stock x402 `batch-settlement` facilitator, server and client examples (checkout `e208bd3`, unmodified) and once through Wakeless. Every row was read back from the devnet ledger with `getTransaction` through the watcher's own reader; nothing comes from a facilitator, server or client log. Sample size: one run per rail, one payer, three vendors, 30 calls. JSON: [`docs/side-by-side.json`](docs/side-by-side.json); the same data as a page: `pnpm watcher:web`.
 
-[`packages/vendor`](packages/vendor) is the seller side: `x402Shielded`, a Hono middleware. An unpaid request gets a `402` with a base64 `PAYMENT-REQUIRED` listing the shielded accept, its `escrowAddress`, `binding`, `teeValidator`, `privacyFeeBps` and `maxIdleSecs` copied from `/supported`. A paid one goes `/verify`, resource, `/settle`, and the resource leaves only once settled, with a base64 `PAYMENT-RESPONSE`. A facilitator that is unreachable, times out or answers 5xx is a `402` with code `shielded_facilitator_unavailable` and an empty `accepts[]`. A voucher above the deposit or not above the last accepted gets the standard's corrective `402` (`invalid_batch_settlement_svm_cumulative_exceeds_deposit`, `invalid_batch_settlement_svm_cumulative_amount_mismatch`), its shielded entry carrying `extra.channelState`, the buyer's own last voucher as `extra.voucherState`, and above the deposit an `extra.minDeposit` that makes the refused voucher fit; a bad signature or wrong channel id is refused with the standard's code and nothing stored. Four of the design's ten failure rows are implemented and tested this way (`packages/facilitator/test/failures-1.test.ts`); the other six follow. [`packages/vendors`](packages/vendors) runs three synthetic data servers behind it (`pnpm vendors`): `GET /price/:symbol`, `/sentiment/:symbol` and `/news/:symbol`, on their own ports and keypairs, with made-up data that is a function of a seed.
+| | Public `batch-settlement` | Wakeless |
+| --- | ---: | ---: |
+| Base-layer transactions per call | 9 / 30 = 0.30 | 0 / 30 = 0.00 |
+| Vendors recovered / actual | 3 / 3 | 0 / 3 |
+| Spend recovered | 100.00% | 0.00% |
+| First-contact order recovered | yes | no |
 
-[`packages/client`](packages/client) is the buyer side: `wrapFetchWithWakeless(fetch, {buyerKeypair, paymentsApi, teeRpc, baseRpc})` returns a `fetch` that pays. On a 402 listing a shielded entry, the first call to a vendor makes one private deposit into the escrow (`extra.minDeposit`, or 100 × the price) and opens a channel; every call after it signs the next cumulative voucher, `accepted + amount + ceil(amount × privacyFeeBps / 10000)` so the vendor nets the price, and touches no chain. The rail is built once per session and that construction is the TEE attestation; a vendor whose `extra.teeValidator` is not the attested identity is not paid. One request is in flight per channel; a corrective 402 is honoured once, after the buyer verifies the quoted last voucher as its own; a deposit made for a request that was then not served is presented again, never remade. Channel state and the trajectory of paid requests live in `~/.wakeless/channels.json` (mode 0600); the buyer key signs vouchers and the deposit and goes nowhere else. `pnpm client:20` runs the facilitator and the three vendors in process and pays twenty requests on devnet: three deposits, seventeen vouchers, nothing on the base layer.
+The public rail put 9 transactions on the base layer (an `open`, a `settle` and a `distribute` per vendor), and from them alone `reconstruct()` rebuilt the payer `94BRf9UjVLdNUBGGeKuFqWSk4sA67EDtAmS9pm6RTjzT`, all three vendors in first-contact order, and 100,000 base units of spend per vendor: the `open` names payer and payTo, the `settle` carries the voucher's cumulative amount in clear in the Ed25519 instruction beside it, and the `distribute` names the recipient. The watcher's four checks (no vendor address, no vendor-attributable amount, no Memo instruction, no fee transfer naming the vendor) fail on the public rail as expected.
 
-`pnpm e2e` is the end-to-end check on devnet, in one process over the real MagicBlock rail: thirty paid requests, ten per vendor, then a table, exiting non-zero unless base-layer transactions per request is below 0.2. The headline counts what the public ledger shows of the signatures the run emitted; a second bound, the same 0.2, counts every signature emitted, which overstates the ledger since these private transfers execute inside the rollup. 1 Nov 2026: 30 requests, 3 deposits, 0 base-layer transactions (0.00 per request), 3 signatures emitted (0.10 per request). The run makes no redemption yet; that arrives with the redemption worker, and its transfers will count on both lines. It spends 0.6 devnet USDC from the buyer's private balance and is not part of `pnpm test:all`.
+| # | Public rail | Signature | Base layer | In clear |
+| --- | --- | --- | --- | --- |
+| 1 | `open`, vendor 1, deposit 100000 | `5heSWwPWgARrp661kYmqNkbDGQfvpo2A4rMqqcCDvn8Aq6r92o9FYVbayNvDtJKxXRXxNzvLcSCht4kGY6LEqh7S` | slot 519519628 | payer, payTo, amount, two Memos |
+| 2 | `settle`, vendor 1 | `59P6Cy3fgRc2Be9vk9mYR2FaiHARN1FySXtXDWSp3efH11B7P4qGU2oo2FZRYpmJeYsLzXDpj3RBJJTJDcmg6sa7` | slot 519519860 | cumulative amount in the Ed25519 instruction |
+| 3 | `distribute`, vendor 1 | `2Rt69ztjwiKNgyJFdcirDnAHt8Jhmjd7ahyWJk9raLVeKdFCHDDhs7hgkshZkvnxTqSXJ3Eu347QkDHhUyEePqJM` | slot 519519868 | recipient, amount, Memo |
+| 4 | `open`, vendor 2 | `36DyHW7fMLbARYDmSW3PbvoptNcapsY5qAz1nbg6jW5TqYzcwqPXvFF1V71h8xSRpeEH5rPjxFCXtuFDqWwDyFeh` | slot 519519892 | payer, payTo, amount, two Memos |
+| 5 | `settle`, vendor 2 | `zSicACsABQRLs7ZaUw7mb7kmtFJy71RWzf98bokivVxVKtwooCtV8Y6UTLuBfMkXUa7cPVPP2kzLBKEnSvkK6Xm` | slot 519520133 | cumulative amount |
+| 6 | `distribute`, vendor 2 | `3pWXeacPuG83vcRmeLeZApkwXf26fmf7Y9zFLbtDpmphEabnfzL5dZF8vWnRo2eMm5KDeuPju2DbEYy2G2c6ipmP` | slot 519520151 | recipient, amount, Memo |
+| 7 | `open`, vendor 3 | `2DFtasJxJMEFi7hT6cXu6Gn3xnuaKnjzQXBDD4WnZDL187YSvv2CTAMPidF5b6YpA8Au8JkQDj7Va8xce2g2sDrz` | slot 519520178 | payer, payTo, amount, two Memos |
+| 8 | `settle`, vendor 3 | `4mVwpMj2MjPp1Qw4U5hbxjx7dK8Bjrmx1v3dMUAVq8JaYKjhasFfwLpQPXivTSjX5fVTzUhWf2Agvx1k9wYJYrQa` | slot 519520421 | cumulative amount |
+| 9 | `distribute`, vendor 3 | `2azAqZ3TSgWbMjzi2p1jGoxAbNrNSe155aSXpdeX4qLaoEdyztmcj4vrddhdNqzZ4r5tdvYhJVXyxEThJyKdJfmA` | slot 519520428 | recipient, amount, Memo |
 
-[`packages/mcp-server`](packages/mcp-server) is the buyer agent: an MCP server over stdio (`@modelcontextprotocol/sdk`) with `get_price`, `get_sentiment` and `get_news`, each paying its vendor through `wrapFetchWithWakeless`, and two owner tools, `budget_status` and `set_limits`. A per-payment cap (0.05 USDC) and a rolling 24-hour cap (1 USDC) run inside the client's `beforePayment` hook, so a refused request makes no deposit and signs no voucher; the ledger persists in `~/.wakeless/mcp-budget.json`. The repo's `.mcp.json` configures it for Claude Code; `packages/mcp-server/claude_desktop_config.json` for Claude Desktop. The buyer key comes from `BUYER_KEYPAIR`, read in clear from disk: devnet key handling for a devnet buyer.
+Wakeless ran the same 30 calls through the in-process facilitator, the three synthetic vendors and the client over the attested MagicBlock binding (buyer `3sWw9GDqNiqqQZUsSs7qkcbnodA4yMLXtXbH4q6anpba`, escrow `EasXF7gqHLMMncsB7aV18EtzrhNkzQy2oC7pdKPKT3k6`), then one redemption run: 3 channels owed, 3 redeemed by private transfer. The six signatures the run emitted are not on the base layer; a devnet explorer returns nothing for them, and the TEE RPC answers existence and success only. The observer also scanned every base-layer transaction touching the buyer, the escrow or a vendor in the run's window and found none. `reconstruct()` recovered no payer, no vendor, no spend and no settlement time, and every signature passes all four checks.
 
-[`packages/watcher`](packages/watcher) is the observer: what the public ledger shows of a run, read through its own RPC reader (`getTransaction`, read methods only, devnet asserted), and what an unprivileged reader rebuilds from it. On every signature it applies the four checks of the design, mechanically: no vendor address, no vendor-attributable amount, no Memo instruction, no fee transfer naming the vendor, where "address" and "amount" include the raw bytes of every instruction's data. `reconstruct()` decodes the public payment-channels program's `open`, `settle` and `distribute` with the layouts of its IDL and returns the payer, the vendor set, the first-contact order, the cumulative spend per vendor and the settlement times; on Wakeless it attempts the same and returns, as `edges`, whatever token transfers it cannot attribute to a payer. `compare()` measures a reconstruction against the owner's actual trajectory. [`docs/WATCHER.md`](docs/WATCHER.md) is the output of `pnpm watcher` on real devnet signatures, 7 Nov 2026: on the three `batch-settlement` signatures of [`docs/public-rail-log.md`](docs/public-rail-log.md) the reconstruction equals the hand-written block there (1 of 1 vendors, 100% of the spend, first-contact order recovered; checks 1 to 3 fail on the rail, as expected). On the Wakeless run (the three channel deposits of a `pnpm e2e` run, the vault deposit that funded it, and the spike's vault deposit and vendor withdrawal as the rail's base-layer edges) every signature passes all four checks, and the reconstruction recovers no payer, no vendor, no spend and no settlement time: 0 of 3 vendors, 0%, order not recovered. What remains readable is exactly two edges, a deposit from the buyer into the vault and a withdrawal from the vault to a vendor, unlinked to each other and to any channel. The honest count of base-layer transactions for the run is the vault deposits and withdrawals, not the channel deposits, which the ledger does not show at all. A vendor's own withdrawal names the vendor by construction, so it is checked against the escrow and the buyer instead and links to neither. `pnpm e2e` now runs the same four checks on every signature it emits and fails on one failure.
+| # | Wakeless | Signature | Base layer | In clear |
+| --- | --- | --- | --- | --- |
+| 1 | channel deposit, vendor 1 (private transfer) | `45rG4cjnUZL5zXn23DLSVF67pmJRQxGu5YY5FqMXG1ky2kVfS2gdaRJxdo12yb1UwL4gswVg1QNTKAjwUcpSwM7u` | not on the base layer | nothing |
+| 2 | channel deposit, vendor 2 | `2rFkuM8SBnJj9hZxWN7DTFzhjtET9pjSupensdSzfaEhNEBtb4WrVXPhc9D3mygRYsVar7FghTt1acPhGpE6yTq9` | not on the base layer | nothing |
+| 3 | channel deposit, vendor 3 | `TFLa6G8pLqLkWqRWNn41HdAdxiGiZsJXy6euFfwz6TVmG3enK1Nhh2EKDtNYoJ7vuktwKbPjiXY8xiFKT5hL4vV` | not on the base layer | nothing |
+| 4 | redemption, vendor 1 (private transfer) | `5sEq488hfWkkVbzuPuuqL89LzQSGS1eqtoBemwYnHD9NhSX8uEheEDvrGhh2CaWpqWwudo8k6Fecj9wM2VBAqH9e` | not on the base layer | nothing |
+| 5 | redemption, vendor 2 | `2etiqt3FMcX3UmbttRCXpFVg969BYUyHYa8kTp3rWodU1E4yvB9JCAsrqhqjH31d6xyWk1Qk88mx5FJ5LDRWqzn5` | not on the base layer | nothing |
+| 6 | redemption, vendor 3 | `3pmLLjquxJ3dSHhSEpRcKCZhYwXDp731XpqUB4EsWWvUHApr6rWFiDaJzqTHSViY5gBr8FWmaXsAU79qLYy2wfgN` | not on the base layer | nothing |
 
-[`docs/LEAKAGE.md`](docs/LEAKAGE.md) is what the ledger already knows: a read-only index of the mainnet payment-channels program that the public `batch-settlement` scheme settles on (`pnpm leak:index`, `packages/watcher/src/leak/`, dated snapshot in [`docs/leak/`](docs/leak)). On 7 Nov 2026, from the program's whole history of 18,291 signatures: 2,464 channels, 328 payers, 60 payTo and 410 public (payer, payTo) relationships, each a channel account naming both with a running total; 24 payers have two or more vendors readable today, and one payer's twelve-vendor trajectory is rebuilt by the same `reconstruct()` the watcher runs. Every address there is truncated to its first four and last four characters; the program id is the only full one. It loads no keypair, calls two read methods and spends nothing. x402scan exposes no public export for the `exact` scheme's per-call transfers, so that larger row is absent and the document says so.
+What remains readable of Wakeless is the edge of the pool, not the relationship: a vault deposit, when the buyer makes one, names the buyer and an amount going in, and a vault withdrawal names a vendor and an amount coming out, but nothing on the ledger joins the two. [`docs/WATCHER.md`](docs/WATCHER.md) shows those edges on real signatures: the buyer's 1 USDC vault deposit before the 6 Nov `pnpm e2e` run, `384j89A1T1BeVAp2UrTDvLYCL8EYnAjJpp3c3jFQzkLagD5ipv87kRUWWdwmDxGM8J2VJF73pYpWHym1Vs2v2C9U` (slot 519469332, buyer and vault named, 1,000,000 base units in clear, no vendor), and the 31 Oct spike's vault withdrawal of 0.25 USDC to vendor 1, `5XKE2bt32CvgwRSNc4iaESJUd397WQLut7xHSudQK18YnGXACvEMLAsMU7AVAmy4BL66PpGxxPsx2ntc2Lz319bp` (slot 517194528, signed by the validator, vault and vendor named, no buyer, no channel). Every signature named in this README is checked by `pnpm check:signatures`: a base-layer signature must resolve on the devnet RPC, a rollup signature on the TEE RPC. Reproduce any of them at `https://explorer.solana.com/tx/<signature>?cluster=devnet`; devnet history is pruned over time, and the JSON files under `docs/` keep what the observer read.
 
-[`docs/runs/run-2.md`](docs/runs/run-2.md) is the recorded agent run ([`scripts/agent-run.md`](scripts/agent-run.md) is the runbook): a fresh `claude -p` session, given only "build a short market view for three symbols", made 9 paid requests on devnet, with 3 deposits and 6 vouchers. The base-layer count, as a bound, is the 3 deposits; the public ledger showed 0 of them, measured on the buyer, the escrow, the vendors and their token accounts. [`run-1.md`](docs/runs/run-1.md) is the same workload an hour earlier through a desktop-app session, kept as it happened: the app prepended a note to the prompt. The watcher's checks have not run on either yet.
+## Fund from any chain
 
-## Relationship terms (experimental, off by default)
+[`docs/FUNDING.md`](docs/FUNDING.md). `wakeless fund --from base --amount 2 --confirm <DEMO_CONFIRM>` funds a Wakeless buyer address with USDC held on Base, NEAR, Arbitrum or another chain Aurora lists, through Aurora Intents in confidential mode (`confidentiality: "advanced"` on the same quote endpoint as a public swap). The swap executes inside a separate, permissioned NEAR shard with no public RPC, mempool or explorer. Hidden from anyone reading public chains: the origin wallet, the routing path and the link between the origin deposit and the Solana arrival. Not hidden: the Solana arrival (recipient, asset and amount), the origin deposit on the origin chain, and the inside of the shard from its operators (NEAR runs selective disclosure and screening at ingress; no independent audit was published as of July 2026). The two public edges can be paired by amount and timing; the module uses whole-USDC amounts, waits a random 2 to 10 minutes before the channel deposit, and asks for a fresh buyer address per channel, which defeats a naive pairing and nothing stronger.
 
-Hidden amounts are the baseline. Wakeless hides the relationship, and a relationship is what a seller can price: what one vendor has learned from one buyer (settled cleanly seven periods running; closed a channel owing money) is that vendor's asset, and on the public rail it is free to everyone who did not earn it. Behind `RELATIONSHIP_TERMS=true` (Gate T go, task 12.1T), `@wakeless/vendor` quotes each buyer from the vendor's own private history with it: the price as `amount` and the funding requirement as `extra.minDeposit`, with a vendor-signed terms receipt the buyer keeps. Policy `terms@1`, a pure function with table-driven tests: relationship capital of 250 bps per clean period up to 2500, a risk premium of 2000 bps for `close_with_unpaid` and 1000 for `repeated_exceeds_deposit`, 20 calls' funding for an unknown buyer down to 5, 50 with an incident. A rotated address is an unknown buyer and gets standard terms, never better. [`docs/TERMS.md`](docs/TERMS.md) is generated from the policy; [`docs/VOCABULARY.md`](docs/VOCABULARY.md) locks the words. With the flag off the middleware is byte-for-byte what it was.
+Aurora has no devnet, so this leg runs on mainnet only, off by default and guarded three ways in code: `FUNDING=aurora`, `MAINNET_ENABLED=true`, and `--confirm` equal to the `DEMO_CONFIRM` a human set in `.env` for the day; `FUND_MAX_USDC` (default 5) refuses larger amounts before anything is sent. The module loads no keypair and makes no Solana RPC call; its tests run over recorded fixtures ([`docs/aurora-dry-run.md`](docs/aurora-dry-run.md): Base and NEAR both quoted USDC to Solana in advanced mode on 31 Oct 2026, no funds sent).
 
-`pnpm terms:demo` (devnet, 8 Nov 2026): two buyers call vendor1's `GET /price/:symbol`. The left one has seven clean periods with vendor1, recorded by the script from a live run (seven paid calls, a private redemption after each, the history fed from the facilitator's receipts as the vendor's reader reads them); the right one is a fresh key vendor1 has never seen. Same route, two sets of terms, both signed by vendor1; the facilitator never sees the receipt.
+The three mainnet runs the plan calls for (2 USDC from Base, 2 USDC from NEAR or Arbitrum, and one deliberate `REFUNDED` case showing the refund at `refundTo`) have not been run as of 8 Nov 2026; mainnet spend to date is 0 USDC. When they are, `docs/FUNDING-RUNS.md` carries the explorer links on both sides of each run and the observer's note that the origin wallet does not appear on the Solana side, and [`docs/test/funding-runs.test.ts`](docs/test/funding-runs.test.ts) holds it.
 
+## Quickstart
+
+Devnet, from a clean checkout. Node 22.13 or later, pnpm 11, a free Helius API key, devnet SOL and devnet USDC. Every command runs from the repo root. Nothing here touches mainnet; a mainnet RPC URL or `MAINNET_ENABLED=true` makes every devnet path refuse to start.
+
+```bash
+git clone https://github.com/ivanmolto/wakeless.git && cd wakeless
 ```
+
+```bash
+pnpm install && pnpm build
+```
+
+```bash
+cp .env.example .env
+```
+
+Set `HELIUS_API_KEY` in `.env`; the other values have working defaults. Then the keys and the funds:
+
+```bash
+pnpm keys
+```
+
+```bash
+pnpm airdrop
+```
+
+`pnpm keys` writes six devnet keypairs under `keys/` (gitignored: buyer, escrow, three vendors, the facilitator's receipt signer) and prints their public keys. `pnpm airdrop` requests 1 SOL for the buyer, the escrow and the three vendors and prints the buyer's USDC token account; when the RPC's faucet is closed it says so and names <https://faucet.solana.com>. Send devnet USDC from <https://faucet.circle.com> (network Solana Devnet) to the buyer and to each of the three vendors. Then move funds into the rollup: the buyer's private balance pays the channel deposits (0.6 USDC for one `pnpm e2e` run), and the escrow and each vendor need one private deposit of their own before the enclave will accept a transfer to them (onboarding; `shielded_binding_rejected` with the rail's code `TEE_INGRESS` otherwise). Each of these is one public base-layer transaction naming the wallet and the vault, and the watcher lists it as such.
+
+```bash
+pnpm fund:private --role buyer --usdc 1
+```
+
+```bash
+pnpm fund:private --role escrow --usdc 0.01
+```
+
+```bash
+pnpm fund:private --role vendor1 --usdc 0.01 && pnpm fund:private --role vendor2 --usdc 0.01 && pnpm fund:private --role vendor3 --usdc 0.01
+```
+
+```bash
+pnpm tokens
+```
+
+`pnpm tokens` writes the facilitator's admin token and one receipt token per vendor into `.env`. Now the checks and the loop:
+
+```bash
+pnpm test
+```
+
+```bash
+pnpm e2e
+```
+
+`pnpm test` is the unit suite (no network). `pnpm e2e` runs the facilitator and the three vendors in process over the real attested MagicBlock rail and pays thirty requests, ten per vendor: three private channel deposits, twenty-seven vouchers, then a table, and it exits non-zero unless base-layer transactions per request is below 0.2 and every emitted signature passes the watcher's four checks. The 8 Nov 2026 run: 30 served, 3 deposits, 0 base-layer transactions, watcher pass. It writes the attestation reports to `docs/attestation-client.json` and `docs/attestation-facilitator.json`.
+
+To run the services and pay from an agent, in two terminals:
+
+```bash
+pnpm --filter @wakeless/facilitator start
+```
+
+```bash
+pnpm vendors
+```
+
+The facilitator attests the TEE first and listens on `127.0.0.1:4020` (`ready`, not `attestation_failed`); the vendors listen on 4021, 4022 and 4023. `curl -i http://127.0.0.1:4021/price/SOL` answers a `402` with the shielded `accepts[]` entry. The buyer agent is the MCP server in `packages/mcp-server`: the repo's `.mcp.json` configures it for Claude Code with `get_price`, `get_sentiment` and `get_news`, each paying its vendor through `@wakeless/client` under caps of 0.05 USDC per payment and 1 USDC per rolling day. [`docs/runs/run-2.md`](docs/runs/run-2.md) is a recorded run: a fresh `claude -p` session, given "build a short market view for three symbols", made 9 paid requests with 3 deposits and 0 base-layer transactions; [`scripts/agent-run.md`](scripts/agent-run.md) is the runbook. Without an agent, `pnpm client:20` pays twenty requests through the client.
+
+Redemption, receipts and the observer:
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $FACILITATOR_ADMIN_TOKEN" http://127.0.0.1:4020/admin/redeem
+```
+
+```bash
+pnpm vendor:receipts --vendor 1
+```
+
+```bash
+pnpm watcher
+```
+
+The redemption worker pays each vendor what it is owed, net of the 0.1% privacy fee, as one private transfer per channel, every `REDEEM_INTERVAL` seconds and on `POST /admin/redeem`, and signs a receipt per period. `pnpm vendor:receipts` fetches vendor 1's receipts under its token, verifies the facilitator's signature on each, and asks the rail under the vendor's own login whether each transfer landed. `pnpm watcher` reads the recorded signatures of both rails from devnet, runs the four checks and `reconstruct()`, and writes [`docs/WATCHER.md`](docs/WATCHER.md). `pnpm side-by-side` regenerates [`docs/side-by-side.md`](docs/side-by-side.md) by driving both rails (it needs the public rail's example checkout under `vendor/x402` and a funded public payer). A channel close (`pay.close(channelId)` in the client: the vendor is paid its watermark, the rest returns to the buyer's private balance as a private transfer) is exercised by `pnpm test:devnet`, which runs every devnet-tagged test serially and spends from the private balances.
+
+| Package | What it is |
+| --- | --- |
+| [`packages/scheme`](packages/scheme) | Types, voucher, channel id, watermark and error codes of the scheme; pure functions |
+| [`packages/binding`](packages/binding) | The `SettlementBinding`, `BuyerBinding` and `PayeeBinding` interfaces |
+| [`packages/binding-magicblock`](packages/binding-magicblock) | The binding over the Private Payments API and the devnet TEE; the only package that imports the primitive |
+| [`packages/facilitator`](packages/facilitator) | `/supported`, `/verify`, `/settle`, the redemption worker, receipts, close |
+| [`packages/vendor`](packages/vendor) | The seller middleware `x402Shielded`; `src/terms/` is the flagged relationship-terms layer |
+| [`packages/vendors`](packages/vendors) | Three synthetic data servers and the vendor's receipt reader |
+| [`packages/client`](packages/client) | `wrapFetchWithWakeless`, `pay.close`, and the `wakeless fund` command |
+| [`packages/mcp-server`](packages/mcp-server) | The buyer agent's MCP server with the owner's caps |
+| [`packages/watcher`](packages/watcher) | The observer, `reconstruct()`, the owner's view and the leakage indexer; `web/` is the page |
+
+## How Solana powers it
+
+Every settlement call goes through one `SettlementBinding` (`readDeposit`, `settle`, `refund`, `privateBalance`, `transferStatus`, `observe`) implemented over MagicBlock's Private Ephemeral Rollup. Construction verifies TEE attestation with `verifyTeeRpcIntegrity` from `@magicblock-labs/ephemeral-rollups-kit` 0.17.3 and refuses to start otherwise (`shielded_attestation_failed`); the report is written with every run. A binding call that cannot be made privately fails with `shielded_binding_rejected`, is never retried, and is never retried as a public transfer; no path in the code falls back to a public transfer, and nothing is simulated.
+
+| Piece | Value |
+| --- | --- |
+| Base layer | Solana devnet, CAIP-2 `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`, asserted by genesis hash before any RPC call; devnet USDC `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
+| Private Ephemeral Rollup | MagicBlock's devnet TEE validator `MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`, RPC `https://devnet-tee.magicblock.app` (Intel TDX; quote verification data from `https://pccs.phala.network/tdx/certification/v4`) |
+| Private Payments API | `https://payments.magicblock.app`, `cluster: "devnet-private"` (plain `devnet` is the public validator, not a PER); it builds the private transfers, which are signed locally and submitted to the attested TEE RPC; its `memo` field is never set |
+| Ephemeral SPL Token program | `SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2`: the Global Vault that holds every private balance; deposits into it and withdrawals out of it are the base-layer edges |
+| Delegation program | `DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh`: delegates ephemeral token accounts to the validator |
+| Permission program | `ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1`: per-account read permissions inside the rollup; permission accounts exist only on the rollup |
+| Attestation reports | [`docs/attestation-facilitator.json`](docs/attestation-facilitator.json), [`docs/attestation-client.json`](docs/attestation-client.json), [`docs/attestation-mcp.json`](docs/attestation-mcp.json), [`docs/attestation-vendor.json`](docs/attestation-vendor.json), rewritten on every start; the spike's report with the raw quote is [`docs/attestation-devnet.json`](docs/attestation-devnet.json), sha256 `de6b34c5b59795db28e7066d0e461bd6df84a8c3cf0849b57a3f103340f87f40` on 8 Nov 2026 |
+| Escrow (v1) | A keypair held by the facilitator, `EasXF7gqHLMMncsB7aV18EtzrhNkzQy2oC7pdKPKT3k6` on devnet, whose private ephemeral USDC balance is funded by buyers' private deposits; [`docs/ESCROW.md`](docs/ESCROW.md) decides the v2 program-owned escrow |
+
+What is on the base layer: a party's vault deposit (its address, the vault, the amount, under the Ephemeral SPL Token and delegation programs), a vendor's vault withdrawal (cranked by the validator identity; the vault and the vendor, the amount; the source is the vault, never the escrow), and each party's one-time onboarding deposit. What is not: the channel deposit from the buyer's private balance to the escrow, every voucher (off chain), every redemption from the escrow to a vendor, and every refund back to the buyer; these are ephemeral-to-ephemeral transfers that execute inside the rollup and are never broadcast, and the TEE RPC returns for them an ephemeral transaction with no accounts, logs or balances, to the recipient as much as to anyone. Two consequences the design rests on: the facilitator verifies a deposit from the client-signed transaction the x402 `deposit` payload carries (buyer, amount, no Memo), then checks that it landed and that the escrow's private balance grew; and the randomised settlement delay and `split` the binding sends shape only the queued route, so they are not relied on.
+
+## The x402 integration
+
+Scheme id `batch-settlement-shielded`. The x402 SVM `batch-settlement` binding requires implementations to target the canonical payment-channels program id and takes no program id from `extra`, so a PER-based escrow cannot advertise `scheme: "batch-settlement"`; Wakeless registers a sibling id and copies the standard everywhere the standard does not name the public program. [`docs/SCHEME.md`](docs/SCHEME.md) records, with spec line numbers, what is reused verbatim and what changes.
+
+What stays standard: the x402 V2 envelope (`x402Version: 2`, `accepts[]`, `paymentPayload`, `paymentRequirements`); the three transport headers `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`; the three facilitator endpoints; the `authorization` flow (verify, resource, settle); the 50-byte voucher (`0x56 0x01 || channelId || u64le maxClaimableAmount || i64le expiresAt = 0`), signed by the client (`voucherSigner: "client"`, the mode the spec says clients should prefer) and verified off chain, never placed on chain; the `deposit`, `voucher` and `refund` payload types; the `invalid_batch_settlement_svm_*` error codes, `settlement_pending` and `duplicate_settlement` verbatim; the corrective 402 of spec section 4.6; and the recovery rules ([`docs/RECOVERY.md`](docs/RECOVERY.md)). What changes: the `accepts[]` entry adds `extra.escrowAddress`, `extra.binding: "magicblock"`, `extra.teeValidator` (the identity a client verifies before paying) and `extra.privacyFeeBps: 10`; `channelId` is `base58(sha256(buyer || escrowAddress || mint || u64le(salt)))` instead of the program's PDA, and `clientRefId`, the encrypted reference of the private transfers, is the decimal u64 of its first eight bytes; the `deposit` payload carries the client-signed private transfer so the facilitator can verify buyer and amount; new codes take the `shielded_` prefix (`shielded_attestation_failed`, `shielded_binding_rejected`, `shielded_verify_required`, `shielded_rate_limited`, `shielded_unauthorized`, `shielded_facilitator_unavailable`, `shielded_terms_quoted`). A stock `@x402/svm` client does not speak the new scheme id, so `@wakeless/client` is the wrapper; a vendor adds one `accepts[]` entry through `@wakeless/vendor`.
+
+The three endpoints: `GET /supported` advertises one kind with `escrowAddress` and `teeValidator` taken from the attested binding, and with `kinds: []` and `extra.error: "shielded_attestation_failed"` when attestation failed. `POST /verify` recomputes the channel id, checks the buyer's signature and applies the watermark rule to the stored channel without writing. `POST /settle` moves the watermark atomically after a `/verify` of the same payload within `maxTimeoutSeconds`, confirms a deposit through the binding, answers a repeated identical payload with the stored result and `extra.replayed: true`, and takes the buyer's close request. Each redemption produces a facilitator-signed receipt `{channelId, period, cumulative, amount, signature, facilitatorSignature}` that the vendor fetches from `GET /receipts/:channelId` and verifies against the signer `/supported` lists.
+
+## Trust boundary
+
+Wakeless's privacy is against the public ledger, not against operators. Three operators are inside the boundary in v1:
+
+1. The facilitator holds the escrow key and sees every voucher, every vendor and every amount.
+2. MagicBlock's enclave executes the private transfers. Its confidentiality rests on Intel TDX attestation and MagicBlock's validator; the rollup also screens transactions (geofencing, sanctions) at ingress, so an operator policy sits in the path, and a refusal is `shielded_binding_rejected`, never routed around.
+3. NEAR's private shard operators, for channels funded through Aurora Confidential Intents, see the origin wallet and the route.
+
+Each is a single operator that can be replaced, not the world forever. A vendor sees its own buyers' vouchers, as on the public rail. The buyer's key signs vouchers and the deposit and goes nowhere else. What reaches the ledger is what the side-by-side and [`docs/WATCHER.md`](docs/WATCHER.md) show, and nothing the three operators see does.
+
+## Failed payments
+
+Ten failure rows, each held by a test with this title in `pnpm test` ([`packages/facilitator/test/failures-1.test.ts`](packages/facilitator/test/failures-1.test.ts), [`packages/facilitator/test/failures-2.test.ts`](packages/facilitator/test/failures-2.test.ts)). Status read as "facilitator / vendor": the facilitator answers a verdict with 200 and the spec's own shape plus `{error, code, retryable}`; the vendor answers the buyer with 402 and never the resource.
+
+| Row | Failure | Code | Behaviour | Test |
+| --- | --- | --- | --- | --- |
+| 1 | Voucher exceeds the deposit | `invalid_batch_settlement_svm_cumulative_exceeds_deposit` | Corrective 402 with `extra.channelState`, the buyer's own `extra.voucherState`, and `extra.minDeposit` set so one top-up makes the voucher fit; nothing moves | "voucher exceeds deposit: corrective 402 carries minDeposit" |
+| 2 | Voucher total not above the last accepted | `invalid_batch_settlement_svm_cumulative_amount_mismatch` | Rejected with the snapshot so the buyer resynchronises; the highest watermark is kept | "voucher not above last accepted is rejected" |
+| 3 | Bad signature or wrong channel | `invalid_batch_settlement_svm_voucher_signature`, `invalid_batch_settlement_svm_channel_id_mismatch` | Rejected before the record is read; no snapshot travels; nothing stored | "bad signature or wrong channel is rejected and nothing stored" |
+| 4 | Facilitator unreachable or times out | `shielded_facilitator_unavailable`, `retryable: true` | The vendor fails closed: 402 with empty `accepts[]`, no resource, nothing to deposit into | "facilitator unreachable: vendor fails closed" |
+| 5 | Redemption transaction fails or is unconfirmed | `settlement_pending` (carries the signature) | The amount stays owed; the worker asks the rail about the signature before any resend, then the escrow's balance; the vendor reads it under `pending[]` of its receipts | "redemption failure keeps the amount owed and returns settlement_pending with signature" |
+| 6 | Buyer starts a close before redemption | `invalid_batch_settlement_svm_channel_closing` | During the grace (`withdrawDelay`) the vendor's latest voucher is accepted; after it the vendor is paid its watermark and `deposit − settled` returns to the buyer's private balance | "close before redemption: vendor voucher accepted during grace" |
+| 7 | Buyer disappears | n/a (lifecycle) | At `maxIdleSecs` without activity the channel is idle-closed: settled to the vendor at the accepted watermark, the rest refunded | "buyer disappears: idle close settles at the accepted watermark" |
+| 8 | Duplicate request retry | `duplicate_settlement` | The same `/settle` envelope answers the stored result with `extra.replayed: true` and moves nothing; a buyer resending a header is served once | "duplicate retry returns the stored result" |
+| 9 | Private transfer rejected at PER ingress or `UNSUPPORTED_TRANSFER_ROUTE` | `shielded_binding_rejected` | Terminal: alerted with the rail's code, never retried, never public; the amount stays owed; the vendor reads it under `rejected[]` | "PER rejection is terminal, alerted, never public" |
+| 10 | TEE attestation fails | `shielded_attestation_failed` | The binding does not exist; `/supported` answers `kinds: []`, every other route 503; nothing is verified, settled or simulated | "attestation failure gives an empty /supported" |
+
+## Prior art and what is new
+
+Nobody had built a payment channel or voucher scheme on Solana where the counterparties are hidden. The pieces exist separately, and the teams below each hold one of them. Vetted against Colosseum's project index (8,286 projects, 14 Oct 2026) and the Crypto World's Fair directory (2,973 projects, 24 Oct 2026).
+
+| Project | What it does | Where Wakeless differs |
+| --- | --- | --- |
+| [Subly](https://github.com/SublyFi/subly-for-agents) | Shared vault plus a Nitro enclave ledger; batched payouts to sellers to hide the buyer–seller link; devnet facilitator, mainnet Arcium branch in progress | The nearest competitor on batching, and the same trust class (an enclave). Wakeless keeps the standard scheme and endpoints rather than its own protocol, uses client-signed vouchers that bound the buyer's loss rather than an enclave-held ledger, has a binding interface with a cryptographic path (Rings) rather than one enclave design, and adds confidential funding. Its privacy basis is not stronger than Subly's; it is more standard and more portable |
+| [Sotto](https://github.com/chinesepowered/hack-worldsfair) | Confidential, budgeted, auditable agent payments: encrypted amounts on Solana, fully shielded on Zcash, owner spend policy, viewing keys; speaks x402 and MPP | Closest overall instinct (shielded settlement plus selective disclosure). Per call, no channels, no funding privacy; Wakeless is the standard scheme's channel with the settlement shielded |
+| [GhostTab](https://ghosttab.onrender.com) | An agent funds one tab, spends blind-signed ecash tokens, sellers are paid in batches; the chain never links an agent's calls to its deposit | Closest on mechanism (fund once, spend many, batched payouts). A custom ecash protocol with no attestation or watcher claim and no funding privacy; Wakeless keeps the envelope, endpoints and voucher so a vendor adds one `accepts[]` entry |
+| [Mercurii](https://www.trymercurii.xyz/) | Private operating account for stablecoin businesses on MagicBlock: private treasury and payments, team and agent permissions, x402 agent payments | The same primitive with x402, as a treasury product: no channels, no watcher, no binding interface. MagicBlock plus x402 is not unique; a scheme and a binding with a watcher is |
+| [Veil](https://github.com/devansh0703/veil) | x402 facilitator settling in Token-2022 Confidential Balances, a fresh one-time seat per payment; refuses rather than downgrade to a public transfer | Per call; addresses and the fact of a transfer stay public, and it says so. Two of its rules are copied here: refuse to serve rather than fall back, and keep secrets local |
+| [Obscura](https://github.com/mayank-0789/obscura), [Agentx402](https://github.com/nikhilxhub/x402-agent) | x402 payments through an Umbra mixer or stealth pool, custom envelope or toggle | Per call, not channels; Obscura's `umbra-mixer-v1` is the precedent that a new scheme id is the route |
+| [Cloaked](https://github.com/CloakedAgent/cloaked) | Spending limits, native x402, a ZK mode hiding the owner-to-agent link, anonymous funding via Privacy Cash | Per call, no channels; its anonymous-funding idea is what the Aurora leg does across chains |
+| TAP (Token Access Protocol, Frontier) | A state channel over x402 paying per LLM output token, settling once on devnet; no privacy | The closest structural sibling: channels over x402, public. Wakeless is that design with the settlement shielded |
+| [MagicBlock Private Payments API](https://www.magicblock.xyz/blog/private-payments-api) | Private USDC transfers with scheduling and splits, as REST and as an MCP server | An agent can already pay privately through it per call, with the buyer as sender. Wakeless adds the x402 scheme, channels and vouchers, the escrow that unlinks buyer from vendor, the watcher and the binding path to proofs |
+| [PayAI](https://docs.payai.network/x402/servers/batch-settlement) on the [payment-channels program](https://github.com/solana-foundation/payment-channels) | The production reference for the public `batch-settlement` scheme; in its own words channel membership, watermarks, claims, distributions and the receiver's balance changes are visible on chain | The "before" picture, measured above and in `docs/LEAKAGE.md`. Wakeless differs on client-signed vouchers, private redemption and confidential funding |
+
+What is new here: channels and vouchers (the standard scheme) with shielded settlement, which nobody had joined; the privacy primitive real on devnet rather than mocked, stubbed or simulated (several of the entries above shipped with the primitive stubbed or a simulation fallback); attestation saved and every signature machine-checked, with the observer reconstruction showing exactly what remains recoverable; a trust boundary with its three operators stated rather than implied; confidential cross-chain funding of the channel; the leakage index as evidence that the graph is public today; and a seller pricing from the private relationship the rail protects. Not new, and said so: hidden amounts; MagicBlock plus x402; operational privacy from a TEE.
+
+## Relationship terms (experimental)
+
+Behind `RELATIONSHIP_TERMS=true` (off by default; with it off the vendor middleware is byte-for-byte what it was), `@wakeless/vendor` quotes each buyer from the vendor's own private history with it: the price as `amount` and the funding requirement as `extra.minDeposit`, with a vendor-signed terms receipt in `extra.termsReceipt` that the buyer keeps. Policy `terms@1` is a pure function with table-driven tests: relationship capital of 250 bps per clean period up to 2500; a risk premium of 2000 bps for `close_with_unpaid` and 1000 for `repeated_exceeds_deposit`; a funding requirement of 20 calls for an unknown buyer, down to 5, and 50 with an incident. A rotated address is an unknown buyer and gets standard terms, never better, so rotation can never buy a discount; a property test holds it over random histories. The history is the vendor's private state: never sent to the facilitator, never shared between vendors, never written to chain or to `clientRefId`. [`docs/TERMS.md`](docs/TERMS.md) is generated from the policy; [`docs/VOCABULARY.md`](docs/VOCABULARY.md) locks the four words it uses.
+
+`pnpm terms:demo` (devnet, 8 Nov 2026): two buyers call vendor 1's `GET /price/:symbol`. The left one has seven clean periods with vendor 1, recorded by the script from a live run (seven paid calls, a private redemption after each, the history fed from the facilitator's receipts as the vendor's reader reads them); the right one is a fresh key vendor 1 has never seen. Same route, two sets of terms, both signed by vendor 1; the facilitator never sees the receipt.
+
+```text
   WAKELESS TERMS · GET /price/:symbol               buyer 3sWw…npba          WAKELESS TERMS · GET /price/:symbol               buyer 8R63…zSWa
   ─────────────────────────────────────────────────────────────────          ─────────────────────────────────────────────────────────────────
   STANDARD PRICE                                      0.001000 USDC          STANDARD PRICE                                      0.001000 USDC
@@ -66,4 +269,22 @@ Hidden amounts are the baseline. Wakeless hides the relationship, and a relation
   ─────────────────────────────────────────────────────────────────
 ```
 
-The observer then read every signature the run produced (two channel deposits, two private redemptions): none on the base layer, no recipient, no amount, no memo, all four checks pass, and the table names neither buyer. The seller's history set these terms; nobody else can read it, so nobody else can price it or poach it. Honest limits: a buyer can abandon a bad history by rotating keys and paying standard terms; capital is not portable between vendors by design; in v1 the facilitator sees every voucher and could rebuild a vendor's buyer history, so the claim remains against the ledger; incidents never retire. One client change was needed: the first request of an x402 exchange carries no buyer, so a known buyer's terms arrive on the 402 (`shielded_terms_quoted`) that answers its first voucher, and `@wakeless/client` now adopts them and pays once more, then remembers them per vendor.
+The observer then read every signature the run produced (two channel deposits, two private redemptions): none on the base layer, no recipient, no amount, no memo, all four checks pass, and the table names neither buyer. The seller's history set these terms; nobody else can read it, so nobody else can price it or poach it. Limits: a buyer can abandon a bad history by rotating keys and paying standard terms; capital is not portable between vendors by design; in v1 the facilitator sees every voucher and could rebuild a vendor's buyer history, so the claim remains against the ledger; incidents never retire. One client change was needed: the first request of an x402 exchange carries no buyer, so a known buyer's terms arrive on a `402 shielded_terms_quoted` that answers its first voucher, and `@wakeless/client` adopts them and pays once more.
+
+## Limitations
+
+- Operational privacy, not proofs. Confidentiality inside the rollup rests on a TEE and MagicBlock's validator, not on zero-knowledge proofs; a compromised enclave or a dishonest operator could read balances. Attestation is verified at every start and saved, which bounds the claim, it does not remove it.
+- Screening at ingress. The rollup applies geofencing and sanctions screening; a transfer can be refused by policy, and Wakeless surfaces that as `shielded_binding_rejected` rather than routing around it.
+- Facilitator-held escrow. In v1 the escrow is a keypair the facilitator holds; vouchers bound the buyer's loss to what it signed, but the facilitator can misroute funds and sees every voucher.
+- The vendor set is hidden per buyer only with several buyers behind one escrow. With one buyer, escrow-to-vendor is as good as buyer-to-vendor, and the amounts and timing at the vault's edges can be correlated when traffic is thin.
+- The Aurora leg runs on mainnet only. Aurora has no devnet, so the funding evidence is a mainnet run, and the three runs have not been made yet.
+- Beta APIs. The Private Payments API publishes no OpenAPI document; the TEE's read filter is not auditable from the open validator sources; the recipient's onboarding deposit is observed behaviour, not documented.
+- The leakage numbers are a dated snapshot of one program as one facilitator runs it in preview, 18,291 signatures; they describe the structure of the leak at that size, not a market.
+
+## v2
+
+- Binding to Helius Rings beside MagicBlock, behind `BINDING=rings`, so the same scheme runs over a prover instead of an enclave.
+- A commitment voucher (`VOUCHER_V2`): the voucher carries a hash or Pedersen commitment to the cumulative amount, checked by the escrow program inside the PER or by a circuit, so no operator but the prover sees amounts.
+- A program-owned escrow (`ESCROW_PROGRAM`): an Anchor program delegated into the PER holds the escrow and releases to a vendor against a voucher, removing the facilitator from the parties that can move funds ([`docs/ESCROW.md`](docs/ESCROW.md)).
+- Mainnet by default, after the capped demo run and a human decision; the caps stay in code.
+- Relationship terms out of the experimental flag once incidents can retire and the history survives a facilitator that cannot be trusted with it.
