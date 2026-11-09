@@ -1,0 +1,20 @@
+$ pnpm fund --from base --amount 2 --confirm "$DEMO_CONFIRM" --no-wait
+confidential quote: 2 USDC on base to Cng3ux9iYH8Mzq16NaP13wjXCyuBK811YTDQB7spKUqZ on Solana,
+  1.764763 USDC after Aurora's fees
+send exactly 2 USDC on base to the deposit address: 0x10a8E8b4Be37a5ad93B90AE6CdAF46196442Aa5E
+refund deadline (sent with the quote): 2026-11-09T02:24:25.706Z;
+  refunds go to 0x7904667C340601AaB73939372C016dC5102732A2
+deposit address active until: 2026-11-12T02:24:25.706Z
+polling Aurora's status until SUCCESS, FAILED or REFUNDED, at most until 2026-11-09T02:29:25.706Z
+status: PENDING_DEPOSIT
+status: PROCESSING
+status: SUCCESS
+SUCCESS reported without a destination transaction; nothing recorded. Ask Aurora for the Solana
+  arrival before depositing
+
+$ # the arrival, read back from the recipient's address on Solana mainnet (read-only RPC)
+signature 64rqQTiM…EN6LThdc · slot 467143897 · 2026-11-09T02:07:03Z · 1.765033 USDC
+  to 8repsh7isb31rqS5L6pgbEuEH7K8d5n8wSJnkbvY7rrg, the buyer's USDC account, created in the
+  same transaction · signer DuSs7rCr…JVyAkgbn (Aurora's relayer) · bridge program dahPEoZG…
+  origin wallet 0x7904…32A2: absent from all 21 account keys · no Memo instruction
+$ # origin side, Base: 0x7e44dd4f…e0a4ccc3, 2 USDC from 0x7904…32A2 to the deposit address

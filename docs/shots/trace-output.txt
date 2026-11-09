@@ -1,0 +1,25 @@
+$ GET http://127.0.0.1:4021/price/SOL   (first call to vendor1: opens the channel)
+→ GET /price/SOL
+← 402 Payment Required
+  PAYMENT-REQUIRED  x402Version 2 · accepts[0].scheme batch-settlement-shielded
+                    network solana devnet · amount 1000 (0.001 USDC per call) · payTo ATvA…hetm
+                    extra.binding magicblock · teeValidator MTEW…3xzo · minDeposit 100000 · privacyFeeBps 10
+→ GET /price/SOL  + PAYMENT-SIGNATURE
+  PAYMENT-SIGNATURE  base64 JSON, 2116 bytes · payload: deposit (client-signed private transfer into escrow) + voucher (Ed25519, signed by the buyer)
+                     channel 2HJK…bsFR · cumulative amount and signature not shown
+← 200 OK
+  PAYMENT-RESPONSE  success true · network solana devnet
+  {"symbol":"SOL","price":469.6775,"currency":"USD","step":1,"asOf":"2026-01-01T00:01:00.000Z","sy
+
+$ GET http://127.0.0.1:4021/price/SOL   (second call: voucher only)
+→ GET /price/SOL
+← 402 Payment Required
+  PAYMENT-REQUIRED  x402Version 2 · accepts[0].scheme batch-settlement-shielded
+                    network solana devnet · amount 1000 (0.001 USDC per call) · payTo ATvA…hetm
+                    extra.binding magicblock · teeValidator MTEW…3xzo · minDeposit 100000 · privacyFeeBps 10
+→ GET /price/SOL  + PAYMENT-SIGNATURE
+  PAYMENT-SIGNATURE  base64 JSON, 1468 bytes · payload: voucher (Ed25519, signed by the buyer)
+                     channel 2HJK…bsFR · cumulative amount and signature not shown
+← 200 OK
+  PAYMENT-RESPONSE  success true · network solana devnet
+  {"symbol":"SOL","price":475.7568,"currency":"USD","step":2,"asOf":"2026-01-01T00:02:00.000Z","sy

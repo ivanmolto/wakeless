@@ -1,0 +1,20 @@
+$ claude -p "$(cat scripts/agent-run-prompt.txt)" --mcp-config .mcp.json --strict-mcp-config ...
+  run-3 · Solana devnet · the MCP server pays vendor1, vendor2, vendor3 over x402, traced below
+
+→ GET /price/SOL
+← 402 Payment Required
+  PAYMENT-REQUIRED   x402Version 2 · accepts[0].scheme batch-settlement-shielded
+                     network solana devnet · amount 1000 (0.001 USDC per call) · payTo ATvA…hetm
+                     extra.binding magicblock · teeValidator MTEW…3xzo · minDeposit 100000
+
+→ GET /price/SOL  + PAYMENT-SIGNATURE
+  PAYMENT-SIGNATURE  base64 JSON, 1468 bytes · payload: voucher (Ed25519, signed by the buyer)
+                     channel 2HJK…bsFR · cumulative amount and signature not shown
+← 200 OK
+  PAYMENT-RESPONSE   success true · network solana devnet
+  {"symbol":"SOL","price":475.7568,"currency":"USD","step":2,"asOf":"2026-01-01T00:02:00.000Z"}
+
+  … get_price SOL BTC ETH (vendor1) · get_sentiment ×3 (vendor2) · get_news ×3 (vendor3)
+
+$ pnpm agent-run finish run-3 <the session's stream.jsonl> <the facilitator's log>
+[agent-run] 9 paid requests, 3 deposits, 0 on the base layer, 0.6 USDC into escrow

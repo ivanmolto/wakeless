@@ -1,0 +1,18 @@
+$ pnpm fund --from base --amount 2 --confirm "$DEMO_CONFIRM" --no-wait
+confidential quote: 2 USDC on base to Cng3ux9iYH8Mzq16NaP13wjXCyuBK811YTDQB7spKUqZ on Solana,
+  1.98879 USDC after Aurora's fees
+send exactly 2 USDC on base to the deposit address: 0x8E612f3251B8236e9e1687b59a83ee11e716361C
+refund deadline (sent with the quote): 2026-11-09T02:38:35.186Z;
+  refunds go to 0x7904667C340601AaB73939372C016dC5102732A2
+deposit address active until: 2026-11-12T02:38:35.186Z
+polling Aurora's status until SUCCESS, FAILED or REFUNDED, at most until 2026-11-09T02:43:35.186Z
+status: PENDING_DEPOSIT
+status: INCOMPLETE_DEPOSIT
+status: REFUNDED
+REFUNDED: returned to 0x7904667C340601AaB73939372C016dC5102732A2 on base; nothing arrived on
+  Solana
+
+$ # the deliberate underpayment: 1 USDC sent against the 2 USDC quote
+$ # Base, deposit  0x935ba7c4…f1d6224b  block 55002185  02:20:12Z  1.0000 USDC  wallet → deposit
+$ # Base, refund   0x0abf59fb…6c149fb0  block 55007894  02:39:14Z  0.9976 USDC  Aurora → refundTo
+$ # 1 USDC back minus the 0.0024 USDC refundFee the quote named · nothing on Solana for this run
