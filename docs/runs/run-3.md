@@ -4,7 +4,7 @@ A fresh Claude Code session (claude-opus-5-5, `claude -p`, no prior context) wit
 
 ## Base-layer transactions
 
-**Base-layer transaction count: 3** (the conservative bound `pnpm e2e` also reports: every transaction the run emitted, and they are the deposits only, one per vendor; vouchers are off-chain and the redemption worker does not exist until task 7.2.)
+**Base-layer transaction count: 3** (the conservative bound `pnpm e2e` also reports: every transaction the run emitted, and they are the deposits only, one per vendor; vouchers are off chain, and redemption is a separate run of the facilitator's worker whose private transfers are not part of the agent session.)
 
 **Of those, on the public ledger: 0** (measured: new signatures on the buyer, the escrow, the three vendors and their token accounts between the start and the end of the run. A deposit is a private transfer executed inside the MagicBlock rollup, so the bound overstates what the ledger shows.)
 
@@ -17,7 +17,7 @@ A fresh Claude Code session (claude-opus-5-5, `claude -p`, no prior context) wit
 | Vouchers and deposits the facilitator settled | 9 | its log, `POST /settle 200 settled` |
 | Private balance moved into escrow | 0.6 USDC | the buyer's private balance, before and after; equals the deposits' sum |
 
-The watcher's four checks did not run: `packages/watcher` has no code yet (Day 9). The ledger measure above covers these addresses only. The owner's channel file keeps each deposit's signature, so the checks can run on this run once the watcher exists; the published trajectory does not carry them.
+The ledger measure above covers these addresses only. The watcher's four checks (no vendor address, no vendor-attributable amount, no Memo instruction, no fee transfer naming the vendor) run separately over the kept deposit signatures with `pnpm shots:watch run-3`. The owner's channel file keeps each deposit's signature, so the checks can run on this run; the published trajectory does not carry them. Result, recorded on 2026-11-09 in [`docs/shots/watcher-output.txt`](../shots/watcher-output.txt): the three deposit signatures are not on the base layer, every check passes, and `reconstruct()` recovers no payer, no vendor, no spend and no settlement time (0 / 3 vendors, 0.00% of the spend, first-contact order not recovered).
 
 ## Trust boundary
 
