@@ -1,6 +1,7 @@
 # Unit tests and the docs-site build on every push and pull request. Devnet-tagged tests are
 # skipped by `pnpm test`; tests that read a private working note skip with a printed reason,
-# since CI never has those files. Nothing here touches a network other than npm.
+# since CI never has those files. No RPC and no chain is touched; the one network check, the
+# explorer links of docs/FUNDING-RUNS.md, skips per link when an explorer refuses the probe.
 name: ci
 
 on:

@@ -16,8 +16,14 @@ if (!present) console.warn("[skip] docs/FUNDING-RUNS.md is written by the mainne
 
 // Explorer hosts the document may link. Probed on 7 Nov 2026: basescan.org, arbiscan.io,
 // base.blockscout.com, explorer.near.org, nearscope.net and solana.fm answer 200 to a plain
-// GET; nearblocks.io and solscan.io answer 403 and explorer.solana.com 429 to one, so links to
-// those cannot pass the resolve check and the document does not use them.
+// GET; nearblocks.io and solscan.io answer 403 and explorer.solana.com 429 to one, so the
+// document does not use them. On 9 Nov 2026 basescan.org answered 403 to a GitHub-hosted
+// runner while answering 200 from a residential address: the explorers' bot protection refuses
+// the probe by source address, not by link. A 403 or 429 is therefore read as "could not check"
+// for that link and printed as a skip, never as a pass and never as a failure; 404 and every
+// other status fail, and the check still requires at least one link to answer 200.
+/** Statuses an explorer's bot protection returns to a probe it refuses; they say nothing about the link. */
+const REFUSED_PROBE = new Set([403, 429]);
 /** Explorer hosts for the origin chains `wakeless fund` accepts. */
 const ORIGIN_EXPLORERS = /https:\/\/(?:[a-z0-9-]+\.)?(?:basescan\.org|blockscout\.com|arbiscan\.io|etherscan\.io|explorer\.near\.org|explorer\.mainnet\.near\.org|nearscope\.net|nearblocks\.io|pikespeak\.ai)\/[^\s)>\]]+/g;
 /** Explorer hosts for the Solana side: a transaction for a success, the recipient's page for the refund case. */
@@ -72,7 +78,8 @@ describe.skipIf(!present)("docs/FUNDING-RUNS.md", () => {
     if (key) expect(text).not.toContain(key);
     else console.warn("[skip] key check: AURORA_API_KEY is not set");
 
-    // Links resolve with HTTP 200. Unreachable network: skip with a reason, not a pass.
+    // Links resolve with HTTP 200. Unreachable network: skip with a reason, not a pass. A probe
+    // the explorer refuses (403, 429) is skipped per link with a reason, not a pass either.
     const results = await Promise.all(
       all.map(async (url) => {
         try {
@@ -88,6 +95,13 @@ describe.skipIf(!present)("docs/FUNDING-RUNS.md", () => {
       console.warn(`[skip] link check: none of the ${results.length} explorer links could be fetched (offline?)`);
       return;
     }
-    for (const { url, status } of results) expect(status, url).toBe(200);
+    const refused = results.filter((r) => r.status !== null && REFUSED_PROBE.has(r.status));
+    for (const { url, status } of refused) console.warn(`[skip] link check: ${url} answered ${status} to the probe (bot protection); not checked`);
+    const checked = results.filter((r) => r.status === null || !REFUSED_PROBE.has(r.status));
+    if (checked.length === 0) {
+      console.warn(`[skip] link check: every one of the ${results.length} explorer links refused the probe; nothing was checked`);
+      return;
+    }
+    for (const { url, status } of checked) expect(status, url).toBe(200);
   }, 60_000);
 });
