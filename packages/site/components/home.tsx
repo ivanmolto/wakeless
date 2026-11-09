@@ -1,5 +1,5 @@
 // Shared by the landing and the docs: the wordmark, the GitHub link, and the two pieces of
-// the docs overview page that are not copied from a source (video placeholder, buttons).
+// the docs overview page that are not copied from a source (the video embed, buttons).
 import { buttonVariants } from "fumadocs-ui/components/ui/button";
 import Link from "next/link";
 
@@ -15,16 +15,18 @@ export function Wordmark() {
   );
 }
 
-/** Replaced by the unlisted embed in task 14.2. */
-export function VideoPlaceholder() {
+/** The demo video (task 14.2): the id comes from the README's link; privacy-enhanced host, no autoplay. */
+export function DemoVideo({ id }: { id: string }) {
   return (
-    <div
-      role="img"
-      aria-label="Video placeholder"
-      className="not-prose my-6 flex aspect-video w-full items-center justify-center rounded-xl border border-fd-border text-fd-muted-foreground"
-    >
-      Video
-    </div>
+    <iframe
+      className="not-prose my-6 aspect-video w-full rounded-xl border border-fd-border"
+      src={`https://www.youtube-nocookie.com/embed/${id}`}
+      title="Wakeless demo video"
+      loading="lazy"
+      allow="encrypted-media; fullscreen; picture-in-picture"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />
   );
 }
 

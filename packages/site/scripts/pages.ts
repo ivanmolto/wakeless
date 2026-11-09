@@ -50,6 +50,16 @@ export function publishedVersion(): string {
   return pkg.version;
 }
 
+/** The demo video's YouTube id, from the README intro's "Demo video:" paragraph (task 14.2); the embed is built from it. */
+export function demoVideoId(): string {
+  const paragraph = paragraphStartingWith(intro(readTree(README)), "Demo video:");
+  const link = paragraph.children.find((c) => c.type === "link");
+  if (!link || link.type !== "link") throw new Error("README: the demo video paragraph has no link");
+  const match = /^https:\/\/(?:youtu\.be\/|www\.youtube\.com\/watch\?v=)([\w-]{11})$/.exec(link.url);
+  if (!match) throw new Error(`README: the demo video link is not a YouTube video URL: ${link.url}`);
+  return match[1]!;
+}
+
 /** The snapshot date `docs/LEAKAGE.md` states in its first line ("Snapshot **YYYY-MM-DD**"). */
 export function leakageSnapshotDate(): string {
   const text = readFileSync(join(ROOT, "docs/LEAKAGE.md"), "utf8");
@@ -79,7 +89,7 @@ export const PAGES: Page[] = [
             ]),
           ],
         },
-        { mdx: "<VideoPlaceholder />" },
+        { mdx: `<DemoVideo id=${JSON.stringify(demoVideoId())} />` },
         { mdx: "<HomeButtons />" },
       ];
     },

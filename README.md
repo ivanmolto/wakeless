@@ -8,6 +8,8 @@ An agent's paid tool calls are its plan, and on today's x402 rails the plan leak
 
 Status: devnet alpha, unaudited. Packages `@wakeless/scheme`, `@wakeless/binding`, `@wakeless/binding-magicblock`, `@wakeless/client` and `@wakeless/vendor` at `0.1.0-alpha.0`. MIT.
 
+Demo video: <https://youtu.be/rZ6e7kt0T8I>. Docs: <https://www.wakeless.xyz>.
+
 ## Why hide the relationship
 
 x402 lets agents pay per request, but every payment is a public Solana transaction. Hidden amounts are now the baseline. What stays public is the relationship: who an agent pays, how often, in what order. A buyer's vendor set is its plan; a seller's customer list is its asset, and what it has learned from one buyer is what sets the terms it offers next. Public settlement turns that private history into free reputation for anyone who did not earn it.

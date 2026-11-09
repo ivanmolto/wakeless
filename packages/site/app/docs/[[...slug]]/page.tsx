@@ -2,7 +2,7 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 import { DocsBody, DocsPage, DocsTitle } from "fumadocs-ui/page";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { HomeButtons, VideoPlaceholder } from "@/components/home";
+import { DemoVideo, HomeButtons } from "@/components/home";
 import { source } from "@/lib/source";
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
@@ -14,7 +14,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
     <DocsPage toc={page.data.toc}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsBody>
-        <MDX components={{ ...defaultMdxComponents, HomeButtons, VideoPlaceholder }} />
+        <MDX components={{ ...defaultMdxComponents, DemoVideo, HomeButtons }} />
       </DocsBody>
     </DocsPage>
   );
