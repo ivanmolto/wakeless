@@ -35,6 +35,9 @@
     "terms:demo": "tsx --conditions=development scripts/terms-demo.ts",
     "terms:doc": "tsx --conditions=development scripts/terms-doc.ts",
     "watcher:web": "pnpm --filter @wakeless/watcher-web dev",
+    "shots:trace": "tsx --conditions=development scripts/shots/trace-exchange.ts",
+    "shots:watch": "tsx --conditions=development scripts/shots/watch-run.ts",
+    "shots:render": "tsx scripts/shots/render.ts",
     "site:dev": "pnpm --filter @wakeless/site run site:dev",
     "site:build": "pnpm --filter @wakeless/site run site:build"
   },
