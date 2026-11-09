@@ -1,0 +1,68 @@
+[
+  {
+    "vendor": "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+    "route": "/price/SOL",
+    "amount": "1000",
+    "cumulative": "1001",
+    "timestamp": "2026-11-09T01:14:16.436Z",
+    "deposit": "100000"
+  },
+  {
+    "vendor": "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+    "route": "/price/BTC",
+    "amount": "1000",
+    "cumulative": "2002",
+    "timestamp": "2026-11-09T01:14:16.467Z"
+  },
+  {
+    "vendor": "ATvAn6py5RWRVJuZxGPPbLAhbdtSQNVQJbFVSuBAhetm",
+    "route": "/price/ETH",
+    "amount": "1000",
+    "cumulative": "3003",
+    "timestamp": "2026-11-09T01:14:16.483Z"
+  },
+  {
+    "vendor": "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc",
+    "route": "/sentiment/SOL",
+    "amount": "2000",
+    "cumulative": "2002",
+    "timestamp": "2026-11-09T01:14:20.999Z",
+    "deposit": "200000"
+  },
+  {
+    "vendor": "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc",
+    "route": "/sentiment/BTC",
+    "amount": "2000",
+    "cumulative": "4004",
+    "timestamp": "2026-11-09T01:14:21.022Z"
+  },
+  {
+    "vendor": "3Qdg6oJAoe6uHE7zeDGz9TNvmrQRRWAYrMEqJyPZm9Sc",
+    "route": "/sentiment/ETH",
+    "amount": "2000",
+    "cumulative": "6006",
+    "timestamp": "2026-11-09T01:14:21.039Z"
+  },
+  {
+    "vendor": "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ",
+    "route": "/news/SOL",
+    "amount": "3000",
+    "cumulative": "3003",
+    "timestamp": "2026-11-09T01:14:23.645Z",
+    "deposit": "300000"
+  },
+  {
+    "vendor": "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ",
+    "route": "/news/BTC",
+    "amount": "3000",
+    "cumulative": "6006",
+    "timestamp": "2026-11-09T01:14:23.671Z"
+  },
+  {
+    "vendor": "5Vckjt8WpuA4gWv13qqHKe4jnA5BQyUedrGUZhSLKFtJ",
+    "route": "/news/ETH",
+    "amount": "3000",
+    "cumulative": "9009",
+    "timestamp": "2026-11-09T01:14:23.685Z"
+  }
+]
