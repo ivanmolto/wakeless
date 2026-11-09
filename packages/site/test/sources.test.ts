@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildLandingData } from "../scripts/landing-data.js";
 import { PRIVATE_NOTES, ROOT, toMdx } from "../scripts/markdown.js";
-import { PAGES, SDK_PACKAGES, availablePages, installLine, publishedVersion, routes } from "../scripts/pages.js";
+import { PAGES, SDK_PACKAGES, availablePages, demoVideoId, installLine, publishedVersion, routes } from "../scripts/pages.js";
 import { render } from "../scripts/sync-content.js";
 
 describe("site sources", () => {
@@ -53,6 +53,16 @@ describe("site sources", () => {
         expect(toMdx(block.nodes).trim().length, `page ${page.slug}: empty selection from ${block.from}`).toBeGreaterThan(0);
       }
     }
+  });
+
+  // Task 14.2: the overview embeds the video the README links, and nothing else names a video id.
+  it("the overview's video embed is the README's demo video", () => {
+    const id = demoVideoId();
+    expect(id).toMatch(/^[\w-]{11}$/);
+    expect(readFileSync(join(ROOT, "README.md"), "utf8")).toContain(`Demo video: <https://youtu.be/${id}>`);
+    const home = render(PAGES.find((p) => p.slug === "index")!, routes(PAGES));
+    expect(home).toContain(`<DemoVideo id="${id}" />`);
+    expect(home).not.toContain("VideoPlaceholder");
   });
 
   it("the ledger page names the snapshot date and the trust page is the README verbatim", () => {

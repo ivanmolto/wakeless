@@ -65,6 +65,9 @@ describe("README.md", () => {
     expect(intro).toContain("Status: devnet alpha, unaudited");
     // Every document that describes privacy names the three operators.
     for (const operator of ["the facilitator (vouchers)", "MagicBlock's enclave (private transfers)", "NEAR's private shard (funding origin and route)"]) expect(intro).toContain(operator);
+    // Task 14.2: the demo video and the docs site, linked before the first heading; the site's embed reads the id from here.
+    expect(intro).toMatch(/Demo video: <https:\/\/youtu\.be\/[\w-]{11}>\./);
+    expect(intro).toContain("Docs: <https://www.wakeless.xyz>.");
   });
 
   it("the leakage numbers equal the snapshot's, state the sample, and truncate every third-party address", () => {
