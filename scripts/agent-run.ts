@@ -225,7 +225,8 @@ async function finish(run: string, streamPath: string, facilitatorLogPath: strin
   const balanceMoved = BigInt(state.balance) - after;
   writeFileSync(afterPath(run), JSON.stringify({ at: new Date().toISOString(), balance: after.toString() }, null, 2) + "\n", { mode: 0o600 });
   const facilitatorLog = readFileSync(facilitatorLogPath, "utf8").split("\n");
-  const confirmed = facilitatorLog.filter((line) => line.includes("deposit confirmed")).length;
+  // Runs 1 and 2 were logged as `deposit confirmed`; since the pino logs of task 6.3 the message is `deposit_confirmed`.
+  const confirmed = facilitatorLog.filter((line) => line.includes("deposit confirmed") || line.includes('"msg":"deposit_confirmed"')).length;
   const settled = facilitatorLog.filter((line) => line.includes("POST /settle 200 settled")).length;
 
   if (confirmed !== deposits.length) throw new Error(`the facilitator confirmed ${confirmed} deposits, the trajectory holds ${deposits.length}`);
