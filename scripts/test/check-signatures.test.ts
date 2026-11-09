@@ -4,10 +4,10 @@
 // the test skips with a printed reason, and when the RPC cannot be reached at all it skips
 // rather than passing. The README is the document under test; the side-by-side and watcher
 // documents are the same check on the files the README's numbers come from.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { extractSignatures, fetchTransactionJson, formatResolutions, missing, resolveSignatures } from "../lib/check-signatures.js";
+import { extractSignatures, fetchTransactionJson, formatResolutions, mainnetReaderFromEnv, missing, resolveSignatures } from "../lib/check-signatures.js";
 import { loadDotEnv } from "../lib/env.js";
 
 const ROOT = join(import.meta.dirname, "..", "..");
@@ -111,8 +111,16 @@ describe.skipIf(!rpcUrl)("check-signatures on the documents (network)", () => {
     }
     const found = extractSignatures(readFileSync(join(ROOT, "README.md"), "utf8"));
     expect(found.length).toBeGreaterThan(10);
-    expect(found.every((f) => f.cluster === "devnet"), "the README names no mainnet signature until docs/FUNDING-RUNS.md exists").toBe(true);
-    const resolutions = await resolveSignatures(found, { devnetRpcUrl: rpcUrl!, teeRpcUrl: process.env.MAGICBLOCK_TEE_RPC ?? "https://devnet-tee.magicblock.app", paceMs: 250 });
+    // Mainnet signatures are the Aurora arrivals of docs/FUNDING-RUNS.md; until that document exists the README names none.
+    // They are looked up through the leak package's read-only mainnet reader, the one mainnet read path the repository allows.
+    const fundingRuns = existsSync(join(ROOT, "docs", "FUNDING-RUNS.md"));
+    if (!fundingRuns) expect(found.every((f) => f.cluster === "devnet"), "the README names no mainnet signature until docs/FUNDING-RUNS.md exists").toBe(true);
+    const resolutions = await resolveSignatures(found, {
+      devnetRpcUrl: rpcUrl!,
+      teeRpcUrl: process.env.MAGICBLOCK_TEE_RPC ?? "https://devnet-tee.magicblock.app",
+      paceMs: 250,
+      ...(fundingRuns ? { mainnetReader: mainnetReaderFromEnv(process.env) } : {}),
+    });
     expect(missing(resolutions).map((r) => r.signature), formatResolutions(resolutions)).toEqual([]);
     // The README says which signatures are not on the base layer; the lookups agree.
     const readme = readFileSync(join(ROOT, "README.md"), "utf8");
